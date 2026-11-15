@@ -1,5 +1,5 @@
 [package]
-name = "hub75"
+name = "scoreboard-hub75"
 version.workspace = true
 edition.workspace = true
 

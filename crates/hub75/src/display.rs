@@ -169,7 +169,13 @@ impl<const WIDTH: usize, const HEIGHT: usize, const HALF_HEIGHT: usize>
     }
 
     #[must_use]
+    #[inline(always)]
     pub fn bitplanes(&self) -> &BitplaneBuffer<WIDTH, HALF_HEIGHT> {
         &self.bitplanes
+    }
+
+    #[must_use]
+    pub fn frame_buffer(&self) -> &[[Color; WIDTH]; HEIGHT] {
+        &self.frame_buffer
     }
 }

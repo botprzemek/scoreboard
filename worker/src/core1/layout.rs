@@ -1,4 +1,4 @@
-use basketball::{Game, Scorable, Team};
+use basketball::{Game, ScoreRead, Team};
 use heapless::String;
 use hub75::{Color, DisplayBuffer};
 
@@ -16,7 +16,6 @@ impl Default for ScoreboardLayout {
 }
 
 impl ScoreboardLayout {
-
     #[must_use]
     pub const fn new() -> Self {
         Self {
@@ -41,14 +40,16 @@ impl ScoreboardLayout {
         self.quarter_buffer.clear();
         self.clock_buffer.clear();
 
-        let total_seconds = game.regulation_millis() / 1000;
-        let minutes = total_seconds / 60;
-        let seconds = total_seconds % 60;
+        let reg = game.regulation_time();
 
         let _ = write!(self.home_buffer, "{:03}", game.score(Team::Home));
         let _ = write!(self.guest_buffer, "{:03}", game.score(Team::Away));
         let _ = write!(self.quarter_buffer, "{:?}", game.quarter());
-        let _ = write!(self.clock_buffer, "{minutes:02}:{seconds:02}");
+        if reg.minutes == 0 {
+            let _ = write!(self.clock_buffer, "{:02}:{:02}", reg.seconds, reg.centiseconds);
+        } else {
+            let _ = write!(self.clock_buffer, "{:02}:{:02}", reg.minutes, reg.seconds);
+        }
 
         self.draw_text_layout(
             display,
@@ -77,7 +78,6 @@ impl ScoreboardLayout {
         quarter: &str,
         clock: &str,
     ) {
-
         display.fill(color);
 
         let home_x = 3;

@@ -1,4 +1,4 @@
-#[cfg(feature = "rp235x")]
+#[cfg(any(feature = "rp235x", feature = "linux"))]
 use crate::state::{Input, Machine};
 
 #[cfg(feature = "rp235x")]
@@ -12,7 +12,7 @@ use crate::core0::udp_handler::unified_udp_task;
 #[cfg(feature = "rp235x")]
 use crate::peripherals::{NetPeripherals, TrngPeripherals};
 #[cfg(feature = "rp235x")]
-use config::Config;
+use config::{Config, DeviceConfig};
 #[cfg(feature = "rp235x")]
 use config::flash::FlashReader;
 #[cfg(feature = "rp235x")]
@@ -144,6 +144,16 @@ impl Machine {
         spawner.spawn(defmt::unwrap!(net_task(initialized_net.runner)));
 
         let loaded_config = Config::read().ok();
+        let mut ap_ssid = heapless::String::<32>::new();
+        if let Some(ref config) = loaded_config
+            && let Ok(sn) = config.serial_number()
+            && !sn.is_empty()
+        {
+            let _ = ap_ssid.push_str(sn);
+        }
+        if ap_ssid.is_empty() {
+            let _ = ap_ssid.push_str("Worker-Setup");
+        }
 
         let mut connected_sta = false;
         if let Some(config) = loaded_config {
@@ -204,8 +214,11 @@ impl Machine {
                     dns_servers: heapless::Vec::new(),
                 }));
 
-            cyw43_driver.control.start_ap_open("Worker-Setup", 1).await;
-            defmt::info!("AP 'Worker-Setup' started! Listening on UDP port 9000...");
+            cyw43_driver.control.start_ap_open(&ap_ssid, 1).await;
+            defmt::info!(
+                "AP '{}' started! Listening on UDP port 9000...",
+                ap_ssid.as_str()
+            );
 
             spawner.spawn(defmt::unwrap!(dhcp_task(initialized_net.stack)));
 

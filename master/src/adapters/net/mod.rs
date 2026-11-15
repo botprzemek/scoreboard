@@ -1,9 +1,6 @@
-pub mod connection;
 mod handler;
-mod http;
 mod udp;
+mod websocket;
 
-pub use connection::{Session, run};
-pub use handler::MasterServerHandler;
-pub use http::WebDriver;
 pub use udp::WorkerDriver;
+pub use websocket::WebDriver;

@@ -1,6 +1,6 @@
-# [build]
-# target = "aarch64-unknown-linux-gnu"
+[build]
+target = "aarch64-unknown-linux-gnu"
 
 [target.aarch64-unknown-linux-gnu]
 linker = "aarch64-linux-gnu-gcc"
-runner = ["bash", "-c", 'ssh master-1 "systemctl --user stop master && cat > ~/.local/bin/master && chmod +x ~/.local/bin/master && systemctl --user start master" < "$0"']
+runner = ["bash", "-c", 'ssh master-1 "systemctl --user stop scoreboard-master && cat > ~/.local/bin/scoreboard-master && chmod +x ~/.local/bin/scoreboard-master && systemctl --user start scoreboard-master" < "$0"']

@@ -131,7 +131,7 @@ impl Default for Config<Verified> {
             _state: PhantomData,
         };
 
-        let _ = config.serial_number.0.copy_from_slice(b"sn-0000-0000");
+        let _ = config.serial_number.0.copy_from_slice(b"0000-0000");
         let _ = config.device_id.0.copy_from_slice(b"rp235x");
         let _ = config.wifi_ssid.0.copy_from_slice(b"my_ssid");
         let _ = config.wifi_password.0.copy_from_slice(b"secret_password");

@@ -1,0 +1,491 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0037D7DDDCA512E2DB0B2C9D /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A52CF84CDB8C1AE4213FEEF9 /* UIKit.framework */; };
+		02A3B48858AE34973BCFA199 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 756FCB7FB70B9E6ADCA42AC5 /* QuartzCore.framework */; };
+		11C17CF747412B9637C757AA /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 6B9BE074E3F9AD78C13CA36B /* assets */; };
+		12D501AF7442A5AE625C48F4 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1096E6A8F69F101DDD8003AD /* Security.framework */; };
+		3128167CEB5301A4406DDF4C /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6B6062EA9A548B94441FD454 /* WebKit.framework */; };
+		32955E3C3F047DA2149590EC /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = 70395AC8C557DB2E0AF9A944 /* main.mm */; };
+		332C336DAF650D926D04D020 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 66DFA78237473DAE888E2D89 /* MetalKit.framework */; };
+		5211E614FB86BBDCE3E896AF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1890394F6F120B4C2B3E1879 /* Assets.xcassets */; };
+		662129E22FD1CF5550609DF4 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = DBB47DDA99708193C4CEBC5D /* LaunchScreen.storyboard */; };
+		6D98E55E584CEA91D253CABB /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D2DCE89B645A8730A3240B9E /* CoreGraphics.framework */; };
+		707A4DE6312BA68DC70E8B58 /* libapp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 9CAD4DC0F578314B49899F62 /* libapp.a */; };
+		A4081808D1CA7E281F574C17 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 61734D6CD80F34EE6B5BC3C2 /* Metal.framework */; };
+		D0D86D4D336CB309FE987CAB /* libapp.a in Resources */ = {isa = PBXBuildFile; fileRef = F005D7913011E02A32300C6F /* libapp.a */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		1096E6A8F69F101DDD8003AD /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		1890394F6F120B4C2B3E1879 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		61734D6CD80F34EE6B5BC3C2 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
+		66DFA78237473DAE888E2D89 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
+		6B1B08D938BCE29B00AE75FE /* scoreboard-hmi-tauri_iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "scoreboard-hmi-tauri_iOS.entitlements"; sourceTree = "<group>"; };
+		6B6062EA9A548B94441FD454 /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
+		6B9BE074E3F9AD78C13CA36B /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = SOURCE_ROOT; };
+		70395AC8C557DB2E0AF9A944 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
+		74AC0F8AEB0D0B461E5E536E /* main.rs */ = {isa = PBXFileReference; path = main.rs; sourceTree = "<group>"; };
+		756FCB7FB70B9E6ADCA42AC5 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
+		996AEB8BBDDC6585CC539240 /* lib.rs */ = {isa = PBXFileReference; path = lib.rs; sourceTree = "<group>"; };
+		9CAD4DC0F578314B49899F62 /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
+		A52CF84CDB8C1AE4213FEEF9 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
+		CB2092D34EBEA10C12D6F9C4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		CCCFD9659DCF967CE2F12D99 /* scoreboard-hmi-tauri_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "scoreboard-hmi-tauri_iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		D2DCE89B645A8730A3240B9E /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
+		DBB47DDA99708193C4CEBC5D /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		F005D7913011E02A32300C6F /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
+		F070E81BD4F46463AA11F2B0 /* bindings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bindings.h; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		B6CC4B40B629F17796033965 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				707A4DE6312BA68DC70E8B58 /* libapp.a in Frameworks */,
+				6D98E55E584CEA91D253CABB /* CoreGraphics.framework in Frameworks */,
+				A4081808D1CA7E281F574C17 /* Metal.framework in Frameworks */,
+				332C336DAF650D926D04D020 /* MetalKit.framework in Frameworks */,
+				02A3B48858AE34973BCFA199 /* QuartzCore.framework in Frameworks */,
+				12D501AF7442A5AE625C48F4 /* Security.framework in Frameworks */,
+				0037D7DDDCA512E2DB0B2C9D /* UIKit.framework in Frameworks */,
+				3128167CEB5301A4406DDF4C /* WebKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0A5B102271E481246846607C /* scoreboard-hmi-tauri */ = {
+			isa = PBXGroup;
+			children = (
+				70395AC8C557DB2E0AF9A944 /* main.mm */,
+				E44FD085DF088DA9E7E198AC /* bindings */,
+			);
+			path = "scoreboard-hmi-tauri";
+			sourceTree = "<group>";
+		};
+		238A262C9C26242B527F94D9 = {
+			isa = PBXGroup;
+			children = (
+				6B9BE074E3F9AD78C13CA36B /* assets */,
+				1890394F6F120B4C2B3E1879 /* Assets.xcassets */,
+				DBB47DDA99708193C4CEBC5D /* LaunchScreen.storyboard */,
+				FCF9443B6BECF8516AC76515 /* Externals */,
+				7489F138649C48DA2601CF81 /* scoreboard-hmi-tauri_iOS */,
+				3827BF179ED9216DBBD64408 /* Sources */,
+				5B96D903F0534BE82A1EF23F /* src */,
+				778E261DC1CA551AB542EF0B /* Frameworks */,
+				5CBFF7ED30EFD4A76D693E79 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		3827BF179ED9216DBBD64408 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				0A5B102271E481246846607C /* scoreboard-hmi-tauri */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		5B96D903F0534BE82A1EF23F /* src */ = {
+			isa = PBXGroup;
+			children = (
+				996AEB8BBDDC6585CC539240 /* lib.rs */,
+				74AC0F8AEB0D0B461E5E536E /* main.rs */,
+			);
+			name = src;
+			path = ../../src;
+			sourceTree = "<group>";
+		};
+		5CBFF7ED30EFD4A76D693E79 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				CCCFD9659DCF967CE2F12D99 /* scoreboard-hmi-tauri_iOS.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		6E29429A2E3DEFD5C043952A /* debug */ = {
+			isa = PBXGroup;
+			children = (
+				F005D7913011E02A32300C6F /* libapp.a */,
+			);
+			path = debug;
+			sourceTree = "<group>";
+		};
+		7489F138649C48DA2601CF81 /* scoreboard-hmi-tauri_iOS */ = {
+			isa = PBXGroup;
+			children = (
+				CB2092D34EBEA10C12D6F9C4 /* Info.plist */,
+				6B1B08D938BCE29B00AE75FE /* scoreboard-hmi-tauri_iOS.entitlements */,
+			);
+			path = "scoreboard-hmi-tauri_iOS";
+			sourceTree = "<group>";
+		};
+		778E261DC1CA551AB542EF0B /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				D2DCE89B645A8730A3240B9E /* CoreGraphics.framework */,
+				9CAD4DC0F578314B49899F62 /* libapp.a */,
+				61734D6CD80F34EE6B5BC3C2 /* Metal.framework */,
+				66DFA78237473DAE888E2D89 /* MetalKit.framework */,
+				756FCB7FB70B9E6ADCA42AC5 /* QuartzCore.framework */,
+				1096E6A8F69F101DDD8003AD /* Security.framework */,
+				A52CF84CDB8C1AE4213FEEF9 /* UIKit.framework */,
+				6B6062EA9A548B94441FD454 /* WebKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		E44FD085DF088DA9E7E198AC /* bindings */ = {
+			isa = PBXGroup;
+			children = (
+				F070E81BD4F46463AA11F2B0 /* bindings.h */,
+			);
+			path = bindings;
+			sourceTree = "<group>";
+		};
+		E8D1794DF9762D9E06E0FA90 /* arm64 */ = {
+			isa = PBXGroup;
+			children = (
+				6E29429A2E3DEFD5C043952A /* debug */,
+			);
+			path = arm64;
+			sourceTree = "<group>";
+		};
+		FCF9443B6BECF8516AC76515 /* Externals */ = {
+			isa = PBXGroup;
+			children = (
+				E8D1794DF9762D9E06E0FA90 /* arm64 */,
+			);
+			path = Externals;
+			sourceTree = "<group>";
+		};
+		"TEMP_CA5D07DE-EDBF-4D1A-B1E3-CEC9498F7C82" /* x86_64 */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = x86_64;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		F54B14D1DE8B1A28E3724E0F /* scoreboard-hmi-tauri_iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FF33DDE68210F3CD0D3D57D1 /* Build configuration list for PBXNativeTarget "scoreboard-hmi-tauri_iOS" */;
+			buildPhases = (
+				95903531F806B5ECBFE36E13 /* Build Rust Code */,
+				47D8189CF299414596CC71E5 /* Sources */,
+				74F9FED519FE6A8E1F2D3B61 /* Resources */,
+				B6CC4B40B629F17796033965 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "scoreboard-hmi-tauri_iOS";
+			packageProductDependencies = (
+			);
+			productName = "scoreboard-hmi-tauri_iOS";
+			productReference = CCCFD9659DCF967CE2F12D99 /* scoreboard-hmi-tauri_iOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		7857D55A461C8B260F55BF24 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = 03C626CE47665F1B4F914BCD /* Build configuration list for PBXProject "scoreboard-hmi-tauri" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 238A262C9C26242B527F94D9;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 5CBFF7ED30EFD4A76D693E79 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				F54B14D1DE8B1A28E3724E0F /* scoreboard-hmi-tauri_iOS */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		74F9FED519FE6A8E1F2D3B61 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5211E614FB86BBDCE3E896AF /* Assets.xcassets in Resources */,
+				662129E22FD1CF5550609DF4 /* LaunchScreen.storyboard in Resources */,
+				11C17CF747412B9637C757AA /* assets in Resources */,
+				D0D86D4D336CB309FE987CAB /* libapp.a in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		95903531F806B5ECBFE36E13 /* Build Rust Code */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build Rust Code";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/Externals/x86_64/${CONFIGURATION}/libapp.a",
+				"$(SRCROOT)/Externals/arm64/${CONFIGURATION}/libapp.a",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "cargo tauri ios xcode-script -v --platform ${PLATFORM_DISPLAY_NAME:?} --sdk-root ${SDKROOT:?} --framework-search-paths \"${FRAMEWORK_SEARCH_PATHS:?}\" --header-search-paths \"${HEADER_SEARCH_PATHS:?}\" --gcc-preprocessor-definitions \"${GCC_PREPROCESSOR_DEFINITIONS:-}\" --configuration ${CONFIGURATION:?} ${FORCE_COLOR} ${ARCHS:?}";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		47D8189CF299414596CC71E5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				32955E3C3F047DA2149590EC /* main.mm in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		30B914241ED2270515543749 /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = release;
+		};
+		6CDC919206DA00CBB2DDF7A4 /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ARCHS = (
+					arm64,
+				);
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "scoreboard-hmi-tauri_iOS/scoreboard-hmi-tauri_iOS.entitlements";
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = "Y4RGM9VNMB";
+				ENABLE_BITCODE = NO;
+				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\".\"",
+				);
+				INFOPLIST_FILE = "scoreboard-hmi-tauri_iOS/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME) $(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME) $(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = github.botprzemek.rp235x.hmi;
+				PRODUCT_NAME = "rp235x-hmi";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALID_ARCHS = arm64;
+			};
+			name = release;
+		};
+		857B77C9A01E422B977E2029 /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = debug;
+		};
+		C59A19E8F5185FA2F4CB9A6B /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ARCHS = (
+					arm64,
+				);
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "scoreboard-hmi-tauri_iOS/scoreboard-hmi-tauri_iOS.entitlements";
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = "Y4RGM9VNMB";
+				ENABLE_BITCODE = NO;
+				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\".\"",
+				);
+				INFOPLIST_FILE = "scoreboard-hmi-tauri_iOS/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME) $(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME) $(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = github.botprzemek.rp235x.hmi;
+				PRODUCT_NAME = "rp235x-hmi";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALID_ARCHS = arm64;
+			};
+			name = debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		03C626CE47665F1B4F914BCD /* Build configuration list for PBXProject "scoreboard-hmi-tauri" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				857B77C9A01E422B977E2029 /* debug */,
+				30B914241ED2270515543749 /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+		FF33DDE68210F3CD0D3D57D1 /* Build configuration list for PBXNativeTarget "scoreboard-hmi-tauri_iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C59A19E8F5185FA2F4CB9A6B /* debug */,
+				6CDC919206DA00CBB2DDF7A4 /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 7857D55A461C8B260F55BF24 /* Project object */;
+}

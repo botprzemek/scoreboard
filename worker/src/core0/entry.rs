@@ -114,7 +114,7 @@ pub async fn run_udp_worker() -> Result<(), Box<dyn std::error::Error + Send + S
     socket.set_broadcast(true)?;
     println!("📡 [Core 0 Thread] UDP Worker socket bound to 0.0.0.0:9000");
 
-    let device = Device::try_new(DeviceType::Worker, "sn-linux-001", "worker-linux")?;
+    let device = Device::try_new(DeviceType::Worker, "0000-0001", "worker-linux")?;
     let device_bytes = device.to_bytes();
     let broadcast_target: SocketAddr = "255.255.255.255:9000".parse()?;
 

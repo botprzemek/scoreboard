@@ -1,5 +1,5 @@
 [package]
-name = "hmi-tauri"
+name = "scoreboard-hmi-tauri"
 version.workspace = true
 edition.workspace = true
 
@@ -10,9 +10,9 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [dependencies]
 net = { workspace = true, features = ["std"] }
 
-tauri = { version = "2", features = ["macos-private-api", "image-png", "image-ico"] }
+tauri = { version = "2.12.5", features = ["macos-private-api", "image-png", "image-ico"] }
 tauri-plugin-opener = "2"
 tokio = { workspace = true, features = ["rt", "time"] }
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "2.7.4", features = [] }

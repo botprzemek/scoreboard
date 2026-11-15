@@ -1,3 +1,5 @@
-mod redb;
+mod providers;
+mod table_names;
 
-pub use redb::{DEVICES_TABLE, GAME_TABLE, ReDBProvider};
+pub use providers::{DEVICES_TABLE, DataProvider, GAME_TABLE, ReDBProvider, SqliteProvider};
+pub use table_names::{DEVICES, GAMES};

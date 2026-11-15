@@ -112,19 +112,6 @@ impl GameMachine<state_machine::QuarterBreak> {
     }
 }
 
-pub trait ModifiableScore {
-    fn add_score(&mut self, team: Team, score: Score);
-}
-
-impl<S> ModifiableScore for GameMachine<S>
-where
-    S: CanModifyScore,
-{
-    fn add_score(&mut self, team: Team, score: Score) {
-        self.game.add_score(team, score);
-    }
-}
-
 pub trait CanModifyScore {}
 impl CanModifyScore for state_machine::Idle {}
 impl CanModifyScore for state_machine::Running {}

@@ -1,13 +1,6 @@
-use master::ApplicationBuilder;
+use scoreboard_master::ApplicationBuilder;
 
 #[tokio::main]
 async fn main() {
-    ApplicationBuilder::new()
-        .http_address("0.0.0.0:3000")
-        .udp_address("0.0.0.0:9000")
-        .build()
-        .with_http()
-        .with_udp()
-        .run()
-        .await;
+    ApplicationBuilder::new().build().run().await;
 }

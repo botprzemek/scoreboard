@@ -1,5 +1,5 @@
-use worker::core0::Core0;
-use worker::core1::Core1;
+use scoreboard_worker::core0::Core0;
+use scoreboard_worker::core1::Core1;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("==================================================");

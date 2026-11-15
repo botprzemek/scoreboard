@@ -1,4 +1,4 @@
-use basketball::{Game, Scorable};
+use basketball::{Game, ScoreRead};
 use hub75::{Color, DisplayBuffer, RED};
 
 use crate::core1::ScoreboardLayout;
@@ -15,7 +15,6 @@ impl Default for LinuxScoreboardSimulator {
 }
 
 impl LinuxScoreboardSimulator {
-
     #[must_use]
     pub fn new() -> Self {
         let mut display = DisplayBuffer::<64, 32, 16>::default();

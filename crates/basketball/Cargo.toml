@@ -1,5 +1,5 @@
 [package]
-name = "basketball"
+name = "scoreboard-basketball"
 version.workspace = true
 edition.workspace = true
 

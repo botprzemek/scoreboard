@@ -2,6 +2,26 @@ use crate::LedOutputs;
 use crate::bitplane::BitplaneBuffer;
 use crate::output::{OutputPin, PinLevel};
 
+const fn build_pixel_lut() -> [u32; 64] {
+    let mut lut = [0u32; 64];
+    let mut i = 0;
+    while i < 64 {
+        let m = i as u32;
+        let r1 = (m & 1) << 2;
+        let g1 = ((m >> 1) & 1) << 3;
+        let b1 = ((m >> 2) & 1) << 4;
+        let r2 = ((m >> 3) & 1) << 5;
+        let g2 = ((m >> 4) & 1) << 8;
+        let b2 = ((m >> 5) & 1) << 9;
+        lut[i] = r1 | g1 | b1 | r2 | g2 | b2;
+        i += 1;
+    }
+    lut
+}
+
+#[cfg_attr(feature = "rp235x", unsafe(link_section = ".data.ram_func"))]
+static PIXEL_LUT: [u32; 64] = build_pixel_lut();
+
 impl<P: OutputPin> LedOutputs<P> {
     #[inline(always)]
     pub fn set_row(&mut self, row: u8) {
@@ -38,27 +58,17 @@ impl<P: OutputPin> LedOutputs<P> {
         let sio_out_clr = 0xd000_0020 as *mut u32;
 
         for &mask in bitplane {
-            let r1 = ((mask as u32) & 1) << 2;
-            let g1 = (((mask as u32) >> 1) & 1) << 3;
-            let b1 = (((mask as u32) >> 2) & 1) << 4;
-            let r2 = (((mask as u32) >> 3) & 1) << 5;
-            let g2 = (((mask as u32) >> 4) & 1) << 8;
-            let b2 = (((mask as u32) >> 5) & 1) << 9;
-
-            let set_mask = r1 | g1 | b1 | r2 | g2 | b2;
+            let set_mask = PIXEL_LUT[(mask & 0x3f) as usize];
             let clr_mask = (!set_mask) & (CLEAR_MASK & !CLK_HIGH_BIT);
 
             unsafe {
                 sio_out_clr.write_volatile(clr_mask);
                 sio_out_set.write_volatile(set_mask);
 
-                Self::delay(2);
-
                 sio_out_set.write_volatile(CLK_HIGH_BIT);
-                Self::delay(2);
+                Self::delay(1);
 
                 sio_out_clr.write_volatile(CLK_HIGH_BIT);
-                Self::delay(1);
             }
         }
 
@@ -67,12 +77,46 @@ impl<P: OutputPin> LedOutputs<P> {
         }
     }
 
+    #[inline(always)]
+    fn set_row_sio(row: u8) {
+        const ROW_MASK: u32 = (1 << 10) | (1 << 16) | (1 << 18) | (1 << 20) | (1 << 22);
+        let sio_out_set = 0xd000_0018 as *mut u32;
+        let sio_out_clr = 0xd000_0020 as *mut u32;
+
+        let mut set_mask = 0u32;
+        if (row & 0x01) != 0 {
+            set_mask |= 1 << 10;
+        }
+        if (row & 0x02) != 0 {
+            set_mask |= 1 << 16;
+        }
+        if (row & 0x04) != 0 {
+            set_mask |= 1 << 18;
+        }
+        if (row & 0x08) != 0 {
+            set_mask |= 1 << 20;
+        }
+        let clr_mask = ROW_MASK & !set_mask;
+
+        unsafe {
+            sio_out_clr.write_volatile(clr_mask);
+            sio_out_set.write_volatile(set_mask);
+        }
+    }
+
+    #[cfg_attr(feature = "rp235x", unsafe(link_section = ".data.ram_func"))]
+    #[inline(never)]
     pub fn render_bcm_frame_sio_fast<const WIDTH: usize, const HALF_HEIGHT: usize>(
         &mut self,
         bitplanes: &BitplaneBuffer<WIDTH, HALF_HEIGHT>,
         brightness_percent: u8,
     ) {
-        const BASE_CYCLES: u32 = 20;
+        const BASE_CYCLES: u32 = 1;
+        const LAT_BIT: u32 = 1 << 12;
+        const OE_BIT: u32 = 1 << 13;
+
+        let sio_out_set = 0xd000_0018 as *mut u32;
+        let sio_out_clr = 0xd000_0020 as *mut u32;
         let brightness_factor = u32::from(brightness_percent.min(100));
 
         for bit in 0..8 {
@@ -81,21 +125,21 @@ impl<P: OutputPin> LedOutputs<P> {
             let off_cycles = full_cycles.saturating_sub(on_cycles);
 
             for row in 0..HALF_HEIGHT {
-                self.oe.set_high();
+                unsafe { sio_out_set.write_volatile(OE_BIT) };
 
                 self.clock_out_sio_fast(bitplanes.row_slice(row, bit));
-                self.set_row(row as u8);
+                Self::set_row_sio(row as u8);
 
-                Self::delay(4);
-                self.lat.set_high();
-                Self::delay(8);
-                self.lat.set_low();
-                Self::delay(4);
+                Self::delay(1);
+                unsafe { sio_out_set.write_volatile(LAT_BIT) };
+                Self::delay(1);
+                unsafe { sio_out_clr.write_volatile(LAT_BIT) };
+                Self::delay(1);
 
                 if on_cycles > 0 {
-                    self.oe.set_low();
+                    unsafe { sio_out_clr.write_volatile(OE_BIT) };
                     Self::delay(on_cycles);
-                    self.oe.set_high();
+                    unsafe { sio_out_set.write_volatile(OE_BIT) };
                 }
 
                 if off_cycles > 0 {
@@ -104,8 +148,10 @@ impl<P: OutputPin> LedOutputs<P> {
             }
         }
 
-        self.oe.set_high();
-        self.lat.set_low();
+        unsafe {
+            sio_out_set.write_volatile(OE_BIT);
+            sio_out_clr.write_volatile(LAT_BIT);
+        }
     }
 
     pub fn render_bcm_frame_sync<const WIDTH: usize, const HALF_HEIGHT: usize>(
@@ -156,6 +202,7 @@ impl<P: OutputPin> LedOutputs<P> {
         self.lat.set_low();
     }
 
+    #[inline(always)]
     fn delay(_cycles: u32) {
         #[cfg(feature = "rp235x")]
         cortex_m::asm::delay(_cycles);

@@ -1,5 +1,5 @@
 [package]
-name = "config"
+name = "scoreboard-config"
 version.workspace = true
 edition.workspace = true
 
@@ -27,11 +27,14 @@ serde = [
     "serde/std",
     "serde/derive",
 ]
+flash = [
+    "std",
+    "dep:probe-rs",
+]
 std = [
     "dep:aes-gcm",
     "dep:crc32fast",
     "dep:ed25519-dalek",
     "dep:rand",
-    "dep:probe-rs",
     "dep:libc",
 ]

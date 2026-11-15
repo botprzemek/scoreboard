@@ -1,82 +1,69 @@
-use crate::adapters::data::{GAME_TABLE, ReDBProvider};
+use crate::adapters::data::{DataProvider, GAMES};
 use crate::adapters::repositories::Repository;
 
 use basketball::Game;
 
 #[derive(Clone)]
 pub struct GameRepository {
-    database: ReDBProvider,
+    database: DataProvider,
 }
 
 impl Repository<[Game]> for GameRepository {
     type Output = Vec<Game>;
 
     fn select(&self) -> Vec<Game> {
-        use redb::{ReadableDatabase, ReadableTable};
-
-        let transaction = self
+        let mut games: Vec<Game> = self
             .database
-            .connection()
-            .begin_read()
-            .expect("failed to begin ReDB read transaction for games");
-        let table = transaction
-            .open_table(GAME_TABLE)
-            .expect("failed to open games table");
-        let mut games: Vec<Game> = Vec::new();
-
-        let entries = table
-            .iter()
-            .expect("failed to iterate over games table")
-            .flatten();
-        for (key, value) in entries {
-            if let Ok(mut game) = Game::from_bytes(value.value()) {
-                if let Ok(parsed_id) = key.value().parse::<u16>()
-                    && parsed_id > 0
-                {
-                    game.set_id(parsed_id);
-                }
-                if let Some(existing) = games.iter_mut().find(|entry| entry.id() == game.id()) {
-                    *existing = game;
-                } else {
-                    games.push(game);
-                }
-            }
-        }
+            .read_all(GAMES)
+            .into_iter()
+            .filter_map(Self::decode_entry)
+            .map(Self::with_entry_id)
+            .collect();
 
         games.sort_by_key(Game::id);
+        games.dedup_by_key(|game| game.id());
         games
     }
 
     fn upsert(&self, entities: &[Game]) {
-        let transaction = self
-            .database
-            .connection()
-            .begin_write()
-            .expect("failed to begin ReDB write transaction for games");
-        let _ = transaction.delete_table(GAME_TABLE);
-        let mut table = transaction
-            .open_table(GAME_TABLE)
-            .expect("failed to open games table for writing");
+        let entries = entities
+            .iter()
+            .map(Self::to_entry)
+            .collect::<Vec<(String, Vec<u8>)>>();
 
-        for game in entities {
-            let key = game.id().to_string();
-            let bytes = game.to_bytes();
-            table
-                .insert(key.as_str(), bytes.as_slice())
-                .expect("failed to insert game into games table");
-        }
-
-        drop(table);
-        transaction
-            .commit()
-            .expect("failed to commit games transaction");
+        self.database.replace_all(GAMES, &entries);
     }
 }
 
 impl GameRepository {
-
     #[must_use]
-    pub fn new(database: ReDBProvider) -> Self {
-        Self { database }
+    pub fn new(database: impl Into<DataProvider>) -> Self {
+        Self {
+            database: database.into(),
+        }
+    }
+
+    fn to_entry(game: &Game) -> (String, Vec<u8>) {
+        (game.id().to_string(), game.to_bytes().to_vec())
+    }
+
+    fn decode_entry((key, value): (String, Vec<u8>)) -> Option<(String, Game)> {
+        let game = Game::from_bytes(&value).ok()?;
+
+        Some((key, game))
+    }
+
+    fn with_entry_id((key, mut game): (String, Game)) -> Game {
+        let key = match key.parse::<u16>() {
+            Ok(key) => key,
+            Err(_) => return game,
+        };
+
+        if key == 0 {
+            return game;
+        }
+
+        game.set_id(key);
+        game
     }
 }

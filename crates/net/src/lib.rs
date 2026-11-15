@@ -7,6 +7,7 @@ pub mod layout;
 mod node;
 mod packet;
 pub mod protocol;
+pub mod server_session;
 pub mod session;
 mod transport;
 
@@ -21,6 +22,7 @@ pub use event::{ClientEvent, ServerEvent};
 pub use node::{Client, ClientHandler, NetError, Node, PacketHandler, Server, ServerHandler};
 pub use packet::{ClientPacket, Packet, ServerPacket, crc16_ccitt};
 pub use protocol::{ClientReaderProtocol, ClientWriterProtocol, ServerReaderProtocol};
+pub use server_session::{ServerSession, server_state};
 pub use transport::{
     PacketReceiver, PacketSender, RawConnection, RawPacket, SplitTransport, Transport,
 };

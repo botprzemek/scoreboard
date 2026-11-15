@@ -1,4 +1,5 @@
 use crate::adapters::repositories::Registry;
+use crate::config::Config;
 use crate::services::{DeviceService, GameService};
 
 use tokio::sync::{broadcast, watch};
@@ -10,18 +11,22 @@ pub struct Services {
 }
 
 pub trait Observable<E> {
-
     fn subscribe(&self) -> broadcast::Receiver<E>;
 
     fn watch(&self) -> watch::Receiver<E>;
 }
 
 impl Services {
-
     #[must_use]
-    pub fn new(registry: &Registry) -> Self {
-        let game = GameService::new(registry.game().clone());
-        let devices = DeviceService::new(registry.devices().clone());
+    pub fn new(registry: &Registry, config: &Config) -> Self {
+        let game = GameService::new(
+            registry.game().clone(),
+            config.database_flush_interval,
+        );
+        let devices = DeviceService::new(
+            registry.devices().clone(),
+            config.database_flush_interval,
+        );
 
         Self { game, devices }
     }

@@ -6,9 +6,14 @@ use net::layout::PACKET_SIZE;
 use net::{ClientPacket, Device, DeviceConfig, DeviceType, ServerPacket};
 #[cfg(target_os = "macos")]
 use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
-use tauri::window::{Color, Effect, EffectState, EffectsBuilder};
-use tauri::{AppHandle, Emitter, Manager, WebviewWindow, WindowEvent};
+use tauri::window::Color;
+#[cfg(desktop)]
+use tauri::window::{Effect, EffectState, EffectsBuilder};
+#[cfg(desktop)]
+use tauri::{Manager, WebviewWindow};
+use tauri::{AppHandle, Emitter, WindowEvent};
 
+#[cfg(desktop)]
 fn apply_macos_vibrancy(window: &WebviewWindow) {
     let _ = window.set_background_color(Some(Color(0, 0, 0, 0)));
     let effects = EffectsBuilder::new()
@@ -26,20 +31,27 @@ fn greet(name: &str) -> String {
 
 #[tauri::command]
 fn window_start_drag(app: AppHandle) {
+    #[cfg(desktop)]
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.start_dragging();
     }
+    #[cfg(not(desktop))]
+    let _ = app;
 }
 
 #[tauri::command]
 fn window_minimize(app: AppHandle) {
+    #[cfg(desktop)]
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.minimize();
     }
+    #[cfg(not(desktop))]
+    let _ = app;
 }
 
 #[tauri::command]
 fn window_toggle_maximize(app: AppHandle) {
+    #[cfg(desktop)]
     if let Some(window) = app.get_webview_window("main") {
         if window.is_maximized().unwrap_or(false) {
             let _ = window.unmaximize();
@@ -47,21 +59,29 @@ fn window_toggle_maximize(app: AppHandle) {
             let _ = window.maximize();
         }
     }
+    #[cfg(not(desktop))]
+    let _ = app;
 }
 
 #[tauri::command]
 fn window_toggle_fullscreen(app: AppHandle) {
+    #[cfg(desktop)]
     if let Some(window) = app.get_webview_window("main") {
         let is_fs = window.is_fullscreen().unwrap_or(false);
         let _ = window.set_fullscreen(!is_fs);
     }
+    #[cfg(not(desktop))]
+    let _ = app;
 }
 
 #[tauri::command]
 fn window_close(app: AppHandle) {
+    #[cfg(desktop)]
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.close();
     }
+    #[cfg(not(desktop))]
+    let _ = app;
 }
 
 #[tauri::command]
@@ -72,7 +92,7 @@ async fn discover_master(timeout_secs: Option<u64>) -> Result<String, String> {
         let _ = socket.set_broadcast(true);
         let _ = socket.set_read_timeout(Some(Duration::from_millis(400)));
 
-        let device = Device::try_new(DeviceType::WebBrowser, "sn-hmi-disc", "hmi-app")
+        let device = Device::try_new(DeviceType::WebBrowser, "0000-0000", "hmi-app")
             .map_err(|e| format!("Błąd inicjalizacji urządzenia: {:?}", e))?;
         let packet = ClientPacket::new(ClientEvent::HandshakeRequest, 0, device.to_bytes());
         let packet_bytes = packet.to_bytes();
@@ -153,7 +173,6 @@ fn send_device_config(
 
     match server_packet.event() {
         ServerEvent::DeviceConfigAck => {
-
             let _ = socket.set_read_timeout(Some(Duration::from_millis(2000)));
             if let Ok((n2, _)) = socket.recv_from(&mut buf) {
                 if n2 == PACKET_SIZE {
@@ -181,9 +200,10 @@ fn send_device_config(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
+            #[cfg(desktop)]
             if let Some(window) = app.get_webview_window("main") {
                 apply_macos_vibrancy(&window);
                 if let Some(icon) = app.default_window_icon() {
@@ -195,9 +215,11 @@ pub fn run() {
                 }
             }
 
+            #[cfg(not(desktop))]
+            let _ = app;
+
             #[cfg(target_os = "macos")]
             {
-
                 let app_submenu = SubmenuBuilder::new(app, "HMI")
                     .about(None)
                     .separator()
@@ -273,29 +295,33 @@ pub fn run() {
             }
 
             Ok(())
-        })
-        .on_menu_event(|app, event| {
-            let id = event.id().as_ref();
-            match id {
-                "zoom_in" => {
-                    let _ = app.emit("hmi-zoom-in", ());
-                }
-                "zoom_out" => {
-                    let _ = app.emit("hmi-zoom-out", ());
-                }
-                "zoom_reset" => {
-                    let _ = app.emit("hmi-zoom-reset", ());
-                }
-                "new_game" => {
-                    let _ = app.emit("hmi-new-game", ());
-                }
-                _ => {}
+        });
+
+    #[cfg(desktop)]
+    let builder = builder.on_menu_event(|app, event| {
+        let id = event.id().as_ref();
+        match id {
+            "zoom_in" => {
+                let _ = app.emit("hmi-zoom-in", ());
             }
-        })
+            "zoom_out" => {
+                let _ = app.emit("hmi-zoom-out", ());
+            }
+            "zoom_reset" => {
+                let _ = app.emit("hmi-zoom-reset", ());
+            }
+            "new_game" => {
+                let _ = app.emit("hmi-new-game", ());
+            }
+            _ => {}
+        }
+    });
+
+    builder
         .on_window_event(|window, event| match event {
             WindowEvent::Focused(focused) => {
                 let _ = window.set_background_color(Some(Color(0, 0, 0, 0)));
-                let _ = window.emit("hmi-focus-changed", *focused);
+                let _ = window.emit("hmi-focus-changed", focused);
             }
             WindowEvent::Resized(_) | WindowEvent::ThemeChanged(_) => {
                 let _ = window.set_background_color(Some(Color(0, 0, 0, 0)));

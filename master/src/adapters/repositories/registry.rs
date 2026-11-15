@@ -1,4 +1,4 @@
-use crate::adapters::data::ReDBProvider;
+use crate::adapters::data::DataProvider;
 use crate::adapters::repositories::{DeviceRepository, GameRepository};
 
 pub struct Registry {
@@ -16,7 +16,8 @@ pub trait Repository<Entity: ?Sized> {
 
 impl Registry {
     #[must_use]
-    pub fn new(database: ReDBProvider) -> Self {
+    pub fn new(database: impl Into<DataProvider>) -> Self {
+        let database = database.into();
         let game = GameRepository::new(database.clone());
         let devices = DeviceRepository::new(database);
 

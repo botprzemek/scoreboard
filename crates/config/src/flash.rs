@@ -1,34 +1,38 @@
-#[cfg(feature = "std")]
+#[cfg(feature = "flash")]
 use std::eprintln;
-#[cfg(feature = "std")]
+#[cfg(feature = "flash")]
 use std::time::Duration;
 
+#[cfg(any(feature = "flash", not(feature = "std")))]
 use crate::{CONFIG_ADDR, CONFIG_SIZE, Config, ConfigError, Raw};
 
-#[cfg(feature = "std")]
+#[cfg(feature = "flash")]
 use probe_rs::Permissions;
-#[cfg(feature = "std")]
+#[cfg(feature = "flash")]
 use probe_rs::flashing::DownloadOptions;
-#[cfg(feature = "std")]
+#[cfg(feature = "flash")]
 use probe_rs::probe::list::Lister;
 
+#[cfg(any(feature = "flash", not(feature = "std")))]
 pub trait FlashReader<'flash> {
 
-    #[cfg(feature = "std")]
+    #[cfg(feature = "flash")]
     fn read() -> Result<Config, ConfigError>;
 
     #[cfg(not(feature = "std"))]
     fn read() -> Result<&'flash Config, ConfigError>;
 }
 
+#[cfg(any(feature = "flash", not(feature = "std")))]
 pub trait FlashWriter {
 
-    #[cfg(feature = "std")]
+    #[cfg(feature = "flash")]
     fn write(self);
 }
 
+#[cfg(any(feature = "flash", not(feature = "std")))]
 impl<'flash> FlashReader<'flash> for Config {
-    #[cfg(feature = "std")]
+    #[cfg(feature = "flash")]
     fn read() -> Result<Self, ConfigError> {
         use probe_rs::MemoryInterface;
 
@@ -71,7 +75,7 @@ impl<'flash> FlashReader<'flash> for Config {
     }
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "flash")]
 impl FlashWriter for Config {
     fn write(self) {
         let lister = Lister::new();

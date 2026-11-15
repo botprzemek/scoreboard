@@ -38,10 +38,10 @@ opt-level = 3
 debug = true
 
 [workspace.dependencies]
-basketball = { path = "crates/basketball" }
-config = { path = "crates/config", default-features = false }
-hub75 = { path = "crates/hub75", default-features = false }
-net = { path = "crates/net" }
+basketball = { package = "scoreboard-basketball", path = "crates/basketball" }
+config = { package = "scoreboard-config", path = "crates/config", default-features = false }
+hub75 = { package = "scoreboard-hub75", path = "crates/hub75", default-features = false }
+net = { package = "scoreboard-net", path = "crates/net" }
 
 bytes = "1.12.1"
 cortex-m = { version = "0.7.6" }

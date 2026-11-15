@@ -53,8 +53,9 @@ pub async fn invoke_discover_master(timeout_secs: Option<u64>) -> Result<String,
         } else {
             Err("Failed to acquire Promise".to_string())
         }
+    } else if let Some(configured) = crate::adapters::ws::configured_master_address() {
+        Ok(configured.to_string())
     } else {
-
         Err("Tryb przeglądarki bez IPC Tauri".to_string())
     }
 }

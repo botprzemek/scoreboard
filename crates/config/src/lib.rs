@@ -4,6 +4,7 @@
 extern crate std;
 
 pub mod config;
+#[cfg(any(feature = "flash", not(feature = "std")))]
 pub mod flash;
 pub mod print;
 
@@ -14,6 +15,7 @@ pub mod keys;
 
 #[cfg(feature = "std")]
 pub use config::Input;
+#[cfg(any(feature = "flash", not(feature = "std")))]
 pub(crate) use config::Raw;
 pub use config::{
     CONFIG_ADDR, CONFIG_SIZE, Config, ConfigBuilder, ConfigError, DeviceConfig, NetworkConfig,
@@ -27,5 +29,5 @@ pub use file::{BinReader, BinWriter};
 pub use keys::{KeyError, KeyPair, Keys, SecureKey};
 pub use print::Print;
 
-#[cfg(feature = "std")]
+#[cfg(feature = "flash")]
 pub use probe_rs;

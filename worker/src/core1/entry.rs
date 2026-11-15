@@ -8,6 +8,8 @@ use crate::state::handler::CORE1_READY_SIGNAL;
 use crate::state::{GAME_STATE, IS_CONNECTED_TO_MASTER};
 
 #[cfg(feature = "rp235x")]
+use basketball::{Quarter, ScoreRead, Team};
+#[cfg(feature = "rp235x")]
 use core::sync::atomic::Ordering;
 #[cfg(feature = "rp235x")]
 use embassy_executor::{Executor, Spawner};
@@ -19,24 +21,21 @@ use hub75::{CORAL_RED, DisplayBuffer, LedOutputs};
 use static_cell::StaticCell;
 
 #[cfg(not(feature = "rp235x"))]
-use crate::core1::ScoreboardLayout;
-#[cfg(not(feature = "rp235x"))]
 use crate::state::GAME_STATE;
 #[cfg(not(feature = "rp235x"))]
 use crate::state::handler::CORE1_READY_SIGNAL;
 #[cfg(not(feature = "rp235x"))]
-use basketball::Scorable;
-#[cfg(not(feature = "rp235x"))]
-use hub75::{DisplayBuffer, RED};
+use basketball::ScoreRead;
 
 #[cfg(feature = "rp235x")]
 pub static EXECUTOR: StaticCell<Executor> = StaticCell::new();
+#[cfg(feature = "rp235x")]
+static DISPLAY: StaticCell<DisplayBuffer<64, 32, 16>> = StaticCell::new();
 
 pub struct Core1;
 
 #[cfg(feature = "rp235x")]
 impl Core1 {
-
     pub fn entry(led: LedPeripherals) -> ! {
         let executor = Executor::new();
 
@@ -49,16 +48,28 @@ impl Core1 {
 }
 
 #[cfg(feature = "rp235x")]
+#[derive(PartialEq, Eq)]
+struct RenderKey {
+    home_score: u16,
+    away_score: u16,
+    quarter: Quarter,
+    minutes: u8,
+    seconds: u8,
+    centiseconds: u8,
+    is_connected: bool,
+}
+
+#[cfg(feature = "rp235x")]
 #[embassy_executor::task]
 async fn task(_spawner: Spawner, peripherals: LedPeripherals) {
     let mut outputs = LedOutputs::from_peripherals(peripherals);
-    let mut display = DisplayBuffer::<64, 32, 16>::default();
+    let display = DISPLAY.init_with(DisplayBuffer::new);
     let mut layout = ScoreboardLayout::new();
     let mut last_render = embassy_time::Instant::now();
+    let mut last_idle_color: Option<[u8; 3]> = None;
+    let mut last_render_key: Option<RenderKey> = None;
 
     defmt::info!("🚀 [Core 1] Display runner started (Hardware SIO / DMA Engine)");
-
-    display.set_brightness(30);
 
     loop {
         let now = embassy_time::Instant::now();
@@ -68,12 +79,12 @@ async fn task(_spawner: Spawner, peripherals: LedPeripherals) {
         let is_connected = IS_CONNECTED_TO_MASTER.load(Ordering::Acquire);
 
         if !is_connected {
+            last_render_key = None;
+
             const PALETTE: [[u8; 3]; 3] =
                 [[0xEE, 0x66, 0x3B], [0xF1, 0x56, 0x56], [0xA3, 0x49, 0xCE]];
 
             let elapsed_ms = (now.as_micros() / 1000) as u32;
-            display.set_brightness(30);
-
             const STEP_DURATION_MS: u32 = 1000;
             const TOTAL_DURATION_MS: u32 = STEP_DURATION_MS * 3;
 
@@ -93,28 +104,48 @@ async fn task(_spawner: Spawner, peripherals: LedPeripherals) {
                 ((c1[2] as u32 * inv_progress + c2[2] as u32 * step_progress) / 256) as u8,
             ];
 
-            display.clear();
-            for y in 0..32 {
-                for x in 0..64 {
-                    display.set_pixel(x, y, current_color);
+            if last_idle_color != Some(current_color) {
+                last_idle_color = Some(current_color);
+                display.set_brightness(100);
+                display.clear();
+                for y in 0..32 {
+                    for x in 0..64 {
+                        display.set_pixel(x, y, current_color);
+                    }
                 }
+                display.prepare_bitplanes();
             }
 
-            display.prepare_bitplanes();
             outputs.render_bcm_frame_sio_fast(display.bitplanes(), 30);
         } else {
-            display.set_brightness(20);
-            let mut game = GAME_STATE.get();
+            last_idle_color = None;
 
+            let mut game = GAME_STATE.get();
             if game.state() == basketball::State::Running {
                 game.tick(core::time::Duration::from_micros(delta_micros));
             }
 
-            let is_connected =
-                crate::state::IS_CONNECTED_TO_MASTER.load(core::sync::atomic::Ordering::Relaxed);
-            let color = CORAL_RED;
+            let reg = game.regulation_time();
+            let key = RenderKey {
+                home_score: game.score(Team::Home),
+                away_score: game.score(Team::Away),
+                quarter: game.quarter(),
+                minutes: reg.minutes,
+                seconds: reg.seconds,
+                centiseconds: if reg.minutes == 0 {
+                    reg.centiseconds
+                } else {
+                    0
+                },
+                is_connected,
+            };
 
-            layout.render(&mut display, &game, color, is_connected);
+            if last_render_key.as_ref() != Some(&key) {
+                last_render_key = Some(key);
+                display.set_brightness(100);
+                layout.render(display, &game, CORAL_RED, is_connected);
+            }
+
             outputs.render_bcm_frame_sio_fast(display.bitplanes(), 20);
         }
 
@@ -124,16 +155,13 @@ async fn task(_spawner: Spawner, peripherals: LedPeripherals) {
 
 #[cfg(not(feature = "rp235x"))]
 impl Core1 {
-
     pub fn entry() {
-        println!("🚀 [Core 1 Thread] HUB75 Display Runner started");
+        println!("🚀 [Core 1 Thread] Text Scoreboard Runner started");
         CORE1_READY_SIGNAL.signal();
 
-        let mut display = DisplayBuffer::<64, 32, 16>::default();
-        display.set_brightness(20);
-        let mut layout = ScoreboardLayout::new();
         let mut last_render = std::time::Instant::now();
-        let mut last_log = std::time::Instant::now();
+        let mut last_draw = std::time::Instant::now() - std::time::Duration::from_secs(1);
+        let mut last_snapshot: Option<(basketball::Game, bool)> = None;
 
         loop {
             let now = std::time::Instant::now();
@@ -153,47 +181,82 @@ impl Core1 {
 
             let is_connected =
                 crate::state::IS_CONNECTED_TO_MASTER.load(core::sync::atomic::Ordering::Relaxed);
-            layout.render(&mut display, &game, RED, is_connected);
 
-            if now.duration_since(last_log) >= std::time::Duration::from_secs(1) {
-                last_log = now;
-                print_terminal_scoreboard(&game);
+            let snapshot = (game, is_connected);
+            let changed = last_snapshot.as_ref() != Some(&snapshot);
+
+            if changed && now.duration_since(last_draw) >= std::time::Duration::from_millis(100) {
+                last_draw = now;
+                last_snapshot = Some(snapshot);
+                print_terminal_scoreboard(&game, is_connected);
             }
 
-            std::thread::sleep(std::time::Duration::from_millis(16));
+            std::thread::sleep(std::time::Duration::from_millis(25));
         }
     }
 }
 
 #[cfg(not(feature = "rp235x"))]
-fn print_terminal_scoreboard(game: &basketball::Game) {
-    let total_seconds = game.regulation_millis() / 1000;
-    let minutes = total_seconds / 60;
-    let seconds = total_seconds % 60;
-    let tenths = (game.regulation_millis() % 1000) / 100;
+fn print_terminal_scoreboard(game: &basketball::Game, is_connected: bool) {
+    use std::fmt::Write as _;
+    use std::io::Write as _;
 
-    let time_str = if minutes == 0 && total_seconds < 60 {
-        format!("{seconds:02}.{tenths}")
+    let reg = game.regulation_time();
+    let time_str = if reg.minutes == 0 {
+        format!("{:02}:{:02}", reg.seconds, reg.centiseconds)
     } else {
-        format!("{minutes:02}:{seconds:02}")
+        format!("{:02}:{:02}", reg.minutes, reg.seconds)
     };
+    let clk = game.clock_time();
+    let shot_str = format!("{:02}:{:02}", clk.seconds, clk.centiseconds);
 
     let scores = game.scores();
+    let discipline_str = match game.discipline() {
+        basketball::Discipline::Fiba5v5 => "FIBA 5v5",
+        basketball::Discipline::Fiba3v3 => "FIBA 3v3",
+        _ => "FIBA",
+    };
+    let quarter_str = match game.quarter() {
+        basketball::Quarter::None => "3x3",
+        basketball::Quarter::Q1 => "Q1",
+        basketball::Quarter::Q2 => "Q2",
+        basketball::Quarter::Q3 => "Q3",
+        basketball::Quarter::Q4 => "Q4",
+        _ => "Q?",
+    };
     let state_str = match game.state() {
-        basketball::State::Running => "RUNNING ▶",
-        basketball::State::Paused => "PAUSED ⏸",
-        basketball::State::QuarterEnd => "QUARTER END ⏹",
-        basketball::State::GameEnd => "GAME END 🏁",
+        basketball::State::Running => "RUNNING",
+        basketball::State::Paused => "PAUSED",
+        basketball::State::QuarterEnd => "QUARTER END",
+        basketball::State::GameEnd => "GAME END",
         _ => "IDLE",
     };
+    let master_str = if is_connected {
+        "CONNECTED"
+    } else {
+        "DISCONNECTED"
+    };
 
-    println!(
-        "\r[HUB75 SIM] [GAME #{}] Q{:?} | TIME: {} | HOME {:>3} : {:<3} AWAY | [{}]",
+    let mut out = String::with_capacity(256);
+    out.push_str("\x1B[2J\x1B[H");
+    let _ = writeln!(out, "=== SCOREBOARD WORKER (LINUX) ===");
+    let _ = writeln!(out, "Master : {master_str}");
+    let _ = writeln!(
+        out,
+        "Game   : #{} | {} | {} | {}",
         game.id(),
-        game.quarter(),
-        time_str,
-        scores.home,
-        scores.away,
+        discipline_str,
+        quarter_str,
         state_str
     );
+    let _ = writeln!(
+        out,
+        "Score  : HOME {:>3} : {:<3} AWAY",
+        scores.home, scores.away
+    );
+    let _ = writeln!(out, "Clock  : {} | Shot: {}", time_str, shot_str);
+
+    let mut stdout = std::io::stdout().lock();
+    let _ = stdout.write_all(out.as_bytes());
+    let _ = stdout.flush();
 }

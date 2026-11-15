@@ -10,6 +10,12 @@ const MASTER_ADDRESS_STORAGE_KEY: &str = "hmi_master_address";
 
 pub const DEFAULT_MASTER_ADDRESS: &str = "127.0.0.1:3000";
 
+pub fn configured_master_address() -> Option<&'static str> {
+    option_env!("HMI_MASTER_ADDR")
+        .map(str::trim)
+        .filter(|addr| !addr.is_empty())
+}
+
 pub fn load_master_address() -> String {
     let storage = web_sys::window().and_then(|window| window.local_storage().ok().flatten());
     if let Some(store) = storage
@@ -17,6 +23,10 @@ pub fn load_master_address() -> String {
         && !addr.trim().is_empty()
     {
         return addr.trim().to_string();
+    }
+
+    if let Some(configured) = configured_master_address() {
+        return configured.to_string();
     }
 
     if let Some(window) = web_sys::window()
@@ -48,8 +58,9 @@ pub fn load_or_create_browser_device() -> Device {
         return device;
     }
 
-    let suffix = (js_sys::Math::random() * 10000.0) as u16 % 10000;
-    let serial_number = format!("sn-hmi-{suffix:04}");
+    let part1 = (js_sys::Math::random() * 10000.0) as u16 % 10000;
+    let part2 = (js_sys::Math::random() * 10000.0) as u16 % 10000;
+    let serial_number = format!("{part1:04}-{part2:04}");
 
     if let Some(store) = storage {
         let _ = store.set_item(SERIAL_NUMBER_STORAGE_KEY, &serial_number);

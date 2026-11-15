@@ -3,8 +3,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
-use basketball::{Game, Scorable};
+use basketball::{Game, ScoreRead};
 use hub75::{Color, DisplayBuffer, RED};
+
 use net::event::{ClientEvent, ServerEvent};
 use net::layout::PACKET_SIZE;
 use net::{ClientPacket, Device, DeviceConfigPacket, Heartbeat, ServerPacket};
@@ -25,7 +26,6 @@ impl Default for SimulatedGameState {
 }
 
 impl SimulatedGameState {
-
     pub fn new() -> Self {
         Self {
             game: Arc::new(RwLock::new(Game::empty())),
@@ -55,7 +55,6 @@ pub struct LinuxWorkerSimulator {
 }
 
 impl LinuxWorkerSimulator {
-
     pub fn new(device: Device) -> Self {
         Self {
             device,

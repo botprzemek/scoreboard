@@ -1,8 +1,4 @@
-pub mod hmi;
-pub mod matrix;
-pub mod scoreboard;
+pub mod master_dialog;
+pub mod scoreboard_view;
+pub mod sidebar_panel;
 pub mod traffic_lights;
-
-pub use hmi::*;
-pub use scoreboard::*;
-pub use traffic_lights::*;

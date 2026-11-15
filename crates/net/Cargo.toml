@@ -1,5 +1,5 @@
 [package]
-name = "net"
+name = "scoreboard-net"
 version.workspace = true
 edition.workspace = true
 

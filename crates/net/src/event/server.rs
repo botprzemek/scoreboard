@@ -1,7 +1,4 @@
-use crate::define_event;
-
 define_event! {
-
     pub enum ServerEvent {
         HandshakeAck = 0x81,
         HeartbeatAck = 0x82,

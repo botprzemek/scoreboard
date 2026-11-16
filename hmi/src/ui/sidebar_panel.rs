@@ -42,10 +42,10 @@ pub fn SidebarPanel(
     master: MasterContext,
     #[prop(optional)] on_close_mobile: Option<Callback<()>>,
 ) -> impl IntoView {
-    let master_5v5 = master.clone();
-    let master_3v3 = master.clone();
-    let master_games = master.clone();
-    let master_devices = master.clone();
+    let master_5v5 = master;
+    let master_3v3 = master;
+    let master_games = master;
+    let master_devices = master;
 
     view! {
         <aside class="flex h-full w-full flex-col bg-card/75 backdrop-blur-xl border-r border-border">
@@ -108,8 +108,8 @@ pub fn SidebarPanel(
                             let gid = game.id();
                             let is_active = gid == active_id;
                             let scores = MasterContext::read_scores(&game);
-                            let m_select = master_games.clone();
-                            let m_delete = master_games.clone();
+                            let m_select = master_games;
+                            let m_delete = master_games;
                             let close_cb = on_close_mobile;
 
                             let row_class = if is_active {
@@ -208,9 +208,9 @@ pub fn SidebarPanel(
                             let dev_gid = dev.game_id();
                             let is_self = sn == self_sn;
                             let is_worker = dev.device_type() == DeviceType::Worker;
-                            let m_assign = master_devices.clone();
-                            let m_select = master_devices.clone();
-                            let m_dc = master_devices.clone();
+                            let m_assign = master_devices;
+                            let m_select = master_devices;
+                            let m_dc = master_devices;
                             let game_options = games_snapshot.clone();
 
                             view! {
@@ -249,7 +249,7 @@ pub fn SidebarPanel(
                                             class="h-7 flex-1 rounded-md border border-input bg-background/90 px-2 text-[11px] text-foreground focus-visible:ring-2 focus-visible:ring-ring"
                                             prop:value=dev_gid.to_string()
                                             on:change=move |ev| {
-                                                if let Ok(new_gid) = event_target_value(&ev).parse::<u16>() {
+                                                if let Ok(new_gid) = event_target_value(&ev).parse::<u64>() {
                                                     m_select.assign_device_game(dev, new_gid);
                                                 }
                                             }

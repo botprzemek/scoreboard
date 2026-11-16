@@ -6,9 +6,8 @@ use std::ffi::CStr;
 const AES_ENV_KEY: &[u8] = b"AES_SECRET_KEY\0";
 const ED25519_ENV_KEY: &[u8] = b"ED25519_SECRET_KEY\0";
 
-#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum KeyError {
+pub(crate) enum KeyError {
     MissingEnvironmentVariable,
     InvalidHexEncoding,
     InvalidKeyLength,
@@ -38,7 +37,7 @@ impl fmt::Display for KeyError {
     }
 }
 
-pub struct SecureKey {
+pub(crate) struct SecureKey {
     bytes: [u8; 32],
 }
 
@@ -46,7 +45,7 @@ impl SecureKey {
 
     #[must_use]
     #[inline(always)]
-    pub fn as_bytes(&self) -> &[u8; 32] {
+    pub(crate) fn as_bytes(&self) -> &[u8; 32] {
         &self.bytes
     }
 }
@@ -67,17 +66,16 @@ impl Drop for SecureKey {
     }
 }
 
-#[non_exhaustive]
-pub struct KeyPair {
-    pub ed25519: SecureKey,
-    pub aes: SecureKey,
+pub(crate) struct KeyPair {
+    pub(crate) ed25519: SecureKey,
+    pub(crate) aes: SecureKey,
 }
 
-pub struct Keys;
+pub(crate) struct Keys;
 
 impl Keys {
 
-    pub fn read() -> Result<KeyPair, KeyError> {
+    pub(crate) fn read() -> Result<KeyPair, KeyError> {
         let mut aes = SecureKey { bytes: [0u8; 32] };
         let mut ed25519 = SecureKey { bytes: [0u8; 32] };
 

@@ -68,8 +68,9 @@ impl MasterContext {
             async fn sleep_ms(millis: i32) {
                 let promise = js_sys::Promise::new(&mut |resolve, _| {
                     if let Some(window) = web_sys::window() {
-                        let _ = window
-                            .set_timeout_with_callback_and_timeout_and_arguments_0(&resolve, millis);
+                        let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(
+                            &resolve, millis,
+                        );
                     }
                 });
                 let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
@@ -165,7 +166,8 @@ impl MasterContext {
                                 let _ = incoming_tx_msg.unbounded_send(data_array);
                             }
                         }
-                    }) as Box<dyn FnMut(MessageEvent)>);
+                    })
+                        as Box<dyn FnMut(MessageEvent)>);
                     websocket.set_onmessage(Some(onmessage.as_ref().unchecked_ref()));
                     onmessage.forget();
                 }
@@ -370,9 +372,9 @@ impl MasterContext {
 
     pub fn send_packet(&self, event: ClientEvent, payload: [u8; DATA_SIZE]) {
         if let Some(sender) = self.command_sender.get_untracked().as_ref() {
-            let seq = self.sequence_id.with_value(|id| {
-                id.fetch_add(1, Ordering::Relaxed).wrapping_add(1)
-            });
+            let seq = self
+                .sequence_id
+                .with_value(|id| id.fetch_add(1, Ordering::Relaxed).wrapping_add(1));
             let packet = ClientPacket::new(event, seq, payload);
             if sender.unbounded_send(packet).is_ok() {
                 self.logs.update(|buf| {
@@ -395,7 +397,7 @@ impl MasterContext {
         self.reconnect_trigger.update(|n| *n = n.wrapping_add(1));
     }
 
-    pub fn select_game(&self, game_id: u16) {
+    pub fn select_game(&self, game_id: u64) {
         if let Some(target) = self
             .available_games
             .get_untracked()
@@ -422,10 +424,11 @@ impl MasterContext {
         self.send_packet(ClientEvent::GameCreate, new_game.to_bytes());
     }
 
-    pub fn delete_game(&self, game_id: u16) {
+    pub fn delete_game(&self, game_id: u64) {
         let target = Game::new_with_id(game_id, Discipline::Fiba5v5);
         self.send_packet(ClientEvent::GameDelete, target.to_bytes());
-        self.available_games.update(|games| games.retain(|g| g.id() != game_id));
+        self.available_games
+            .update(|games| games.retain(|g| g.id() != game_id));
     }
 
     pub fn send_game_event(&self, event: ClientEvent) {
@@ -457,7 +460,7 @@ impl MasterContext {
         ScoreRead::scores(game)
     }
 
-    pub fn assign_device_game(&self, mut device: Device, game_id: u16) {
+    pub fn assign_device_game(&self, mut device: Device, game_id: u64) {
         device.set_game_id(game_id);
         let target_sn = device.serial_number().ok().map(str::to_string);
         self.connected_devices.update(|list| {

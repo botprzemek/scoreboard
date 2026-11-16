@@ -1,100 +1,127 @@
-use super::active_game::ActiveGame;
-use super::sync;
+use super::sync::{self, GameCommand};
 
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, RwLock};
-use std::time::{Duration, Instant};
+use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, Mutex, RwLock};
+use std::time::Duration;
 
 use crate::adapters::repositories::{GameRepository, Repository};
 
-use basketball::{Discipline, Game, Score, ScoreRead, ScoreWrite, Scores, State, Team};
+use basketball::{Discipline, Game, Score, Team};
 use net::layout::PACKET_SIZE;
-use tokio::sync::{broadcast, watch};
+use tokio::sync::{broadcast, mpsc, watch};
+use tokio::task::{JoinHandle, JoinSet};
+use tokio_util::sync::CancellationToken;
 
 pub type GameFrame = Arc<[u8; PACKET_SIZE]>;
 
-pub(super) type FrameChannels = Arc<RwLock<HashMap<u16, watch::Sender<Option<GameFrame>>>>>;
+#[derive(Clone)]
+pub(super) struct GameHandle {
+    pub(super) cmd_tx: mpsc::Sender<GameCommand>,
+    pub(super) latest_rx: watch::Receiver<Game>,
+    pub(super) frame_tx: broadcast::Sender<GameFrame>,
+}
 
 #[derive(Clone)]
 pub struct GameService {
-    #[allow(dead_code)]
-    game_repository: GameRepository,
+    pub(super) actors: Arc<RwLock<HashMap<u64, GameHandle>>>,
     pub(super) state: watch::Sender<Vec<Game>>,
-    cache: Arc<RwLock<HashMap<u16, ActiveGame>>>,
-    database_dirty: Arc<AtomicBool>,
     pub(super) broadcast: broadcast::Sender<Vec<Game>>,
-    pub(super) frames: FrameChannels,
+    dirty_ids: Arc<Mutex<HashSet<u64>>>,
+    events_tx: mpsc::Sender<Game>,
+    game_tasks: Arc<Mutex<JoinSet<()>>>,
+    shutdown: CancellationToken,
 }
 
 impl GameService {
-    #[must_use]
-    pub fn new(game_repository: GameRepository, db_flush_interval: Duration) -> Self {
-        let mut initial_games = game_repository.select();
+    pub fn new(
+        game_repository: GameRepository,
+        db_flush_interval: Duration,
+        actors_shutdown: CancellationToken,
+        db_shutdown: CancellationToken,
+    ) -> Result<(Self, Vec<JoinHandle<()>>), String> {
+        let mut initial_games = game_repository.select()?;
         if initial_games.is_empty() {
             let default_game = Game::new_with_id(1, Discipline::Fiba5v5);
             initial_games.push(default_game);
-            game_repository.upsert(&initial_games);
+            game_repository.upsert_many(&initial_games)?;
         }
 
-        let now = Instant::now();
-        let cache_map: HashMap<u16, ActiveGame> = initial_games
-            .iter()
-            .map(|&game| (game.id(), ActiveGame::new(game, now)))
-            .collect();
-        let cache = Arc::new(RwLock::new(cache_map));
-        let database_dirty = Arc::new(AtomicBool::new(false));
-        let frames: FrameChannels = Arc::new(RwLock::new(HashMap::new()));
-
-        let (state, _state_rx) = watch::channel(initial_games);
+        let dirty_ids = Arc::new(Mutex::new(HashSet::new()));
+        let (events_tx, events_rx) = mpsc::channel(sync::EVENT_QUEUE_CAPACITY);
+        let (state, _state_rx) = watch::channel(initial_games.clone());
         let (broadcast, _broadcast_rx) = broadcast::channel(64);
 
-        sync::spawn_db_flusher(
-            game_repository.clone(),
-            Arc::clone(&cache),
-            Arc::clone(&database_dirty),
-            db_flush_interval,
-        );
-        sync::spawn_clock_loop(
-            Arc::clone(&cache),
-            state.clone(),
-            broadcast.clone(),
-            Arc::clone(&database_dirty),
-            Arc::clone(&frames),
-        );
+        let actors = Arc::new(RwLock::new(HashMap::new()));
+        let mut game_tasks = JoinSet::new();
 
-        Self {
-            game_repository,
+        {
+            let mut actors_guard = actors
+                .write()
+                .expect("game actors lock should not be poisoned");
+            for &game in &initial_games {
+                let handle = sync::spawn_game_actor(
+                    game,
+                    Arc::clone(&dirty_ids),
+                    events_tx.clone(),
+                    actors_shutdown.clone(),
+                    &mut game_tasks,
+                );
+                actors_guard.insert(game.id(), handle);
+            }
+        }
+
+        let handles = vec![
+            sync::spawn_db_flusher(
+                game_repository,
+                Arc::clone(&actors),
+                Arc::clone(&dirty_ids),
+                db_flush_interval,
+                db_shutdown,
+            ),
+            sync::spawn_snapshot_aggregator(
+                initial_games,
+                events_rx,
+                state.clone(),
+                broadcast.clone(),
+                actors_shutdown.clone(),
+            ),
+        ];
+
+        let service = Self {
+            actors,
             state,
-            cache,
-            database_dirty,
             broadcast,
-            frames,
+            dirty_ids,
+            events_tx,
+            game_tasks: Arc::new(Mutex::new(game_tasks)),
+            shutdown: actors_shutdown,
+        };
+
+        Ok((service, handles))
+    }
+
+    pub async fn shutdown(&self) {
+        let mut tasks = {
+            let mut guard = self
+                .game_tasks
+                .lock()
+                .expect("game tasks lock should not be poisoned");
+            std::mem::take(&mut *guard)
+        };
+        while let Some(result) = tasks.join_next().await {
+            if let Err(error) = result {
+                tracing::error!("Game actor task failed during shutdown: {error}");
+            }
         }
     }
 
     #[must_use]
-    pub fn all(&self) -> Vec<Game> {
-        let cache = self
-            .cache
+    pub fn by_id(&self, id: u64) -> Option<Game> {
+        self.actors
             .read()
-            .expect("game cache lock should not be poisoned");
-        Self::collect_sorted_games(&cache)
-    }
-
-    pub(super) fn collect_sorted_games(cache: &HashMap<u16, ActiveGame>) -> Vec<Game> {
-        let mut games: Vec<Game> = cache.values().map(|entry| entry.game).collect();
-        games.sort_by_key(Game::id);
-        games
-    }
-
-    #[must_use]
-    pub fn by_id(&self, id: u16) -> Option<Game> {
-        let cache = self
-            .cache
-            .read()
-            .expect("game cache lock should not be poisoned");
-        cache.get(&id).map(|active| active.game)
+            .expect("game actors lock should not be poisoned")
+            .get(&id)
+            .map(|handle| *handle.latest_rx.borrow())
     }
 
     #[must_use]
@@ -103,136 +130,86 @@ impl GameService {
             .unwrap_or_else(|| Game::new_with_id(1, Discipline::Fiba5v5))
     }
 
-    #[must_use]
-    pub fn create_game(&self, discipline: Discipline) -> Game {
-        let now = Instant::now();
-        let created;
-        let snapshot: Vec<Game>;
-
-        {
-            let mut cache = self
-                .cache
+    pub fn create_game(&self, discipline: Discipline) -> Result<Game, &'static str> {
+        let created = {
+            let mut actors = self
+                .actors
                 .write()
-                .expect("game cache lock should not be poisoned");
-            let next_id = Self::next_game_id(&cache);
-            created = Game::new_with_id(next_id, discipline);
-            cache.insert(next_id, ActiveGame::new(created, now));
-            snapshot = Self::collect_sorted_games(&cache);
+                .expect("game actors lock should not be poisoned");
+            let next_id = Self::next_game_id(&actors)?;
+            let created = Game::new_with_id(next_id, discipline);
+            let mut tasks = self
+                .game_tasks
+                .lock()
+                .expect("game tasks lock should not be poisoned");
+            let handle = sync::spawn_game_actor(
+                created,
+                Arc::clone(&self.dirty_ids),
+                self.events_tx.clone(),
+                self.shutdown.clone(),
+                &mut tasks,
+            );
+            actors.insert(next_id, handle);
+            created
+        };
+
+        self.dirty_ids
+            .lock()
+            .expect("dirty game IDs lock should not be poisoned")
+            .insert(created.id());
+        if let Err(error) = self.events_tx.try_send(created) {
+            tracing::warn!(
+                "Failed to publish created game id={} to snapshot aggregator: {error}",
+                created.id()
+            );
         }
 
-        self.database_dirty.store(true, Ordering::Release);
-        let _ = self.state.send(snapshot.clone());
-
-        if self.broadcast.receiver_count() > 0 {
-            let _ = self.broadcast.send(snapshot);
-        }
-
-        created
+        Ok(created)
     }
 
-    fn next_game_id(cache: &HashMap<u16, ActiveGame>) -> u16 {
-        cache
+    fn next_game_id(actors: &HashMap<u64, GameHandle>) -> Result<u64, &'static str> {
+        actors
             .keys()
             .copied()
             .max()
             .unwrap_or(0)
             .checked_add(1)
-            .or_else(|| (1..=u16::MAX).find(|id| !cache.contains_key(id)))
-            .expect("game ID space exhausted")
+            .or_else(|| (1..=u64::MAX).find(|id| !actors.contains_key(id)))
+            .ok_or("game ID space exhausted")
     }
 
-    pub fn modify_game<F>(&self, game_id: u16, modifier: F) -> Option<Game>
-    where
-        F: FnOnce(&mut Game),
-    {
-        let now = Instant::now();
-        let updated_game;
-        let snapshot: Vec<Game>;
+    fn send_command(&self, game_id: u64, cmd: GameCommand) {
+        let cmd_tx = self
+            .actors
+            .read()
+            .expect("game actors lock should not be poisoned")
+            .get(&game_id)
+            .map(|handle| handle.cmd_tx.clone());
 
+        if let Some(cmd_tx) = cmd_tx
+            && cmd_tx.try_send(cmd).is_err()
         {
-            let mut cache = self
-                .cache
-                .write()
-                .expect("game cache lock should not be poisoned");
-            let entry = cache.get_mut(&game_id)?;
-
-            entry.advance_clock(now);
-            let previous_state = entry.game.state();
-            let previous_regulation = entry.game.regulation_millis();
-
-            modifier(&mut entry.game);
-
-            if entry.game.state() == State::Running {
-                if previous_state != State::Running
-                    || previous_regulation != entry.game.regulation_millis()
-                    || entry.last_tick.is_none()
-                {
-                    entry.last_tick = Some(now);
-                }
-            } else {
-                entry.last_tick = None;
-            }
-
-            updated_game = entry.game;
-            snapshot = Self::collect_sorted_games(&cache);
+            tracing::warn!("Failed to deliver command to game actor id={game_id}");
         }
-
-        self.database_dirty.store(true, Ordering::Release);
-        let _ = self.state.send(snapshot.clone());
-
-        if self.broadcast.receiver_count() > 0
-            && let Err(error) = self.broadcast.send(snapshot)
-        {
-            eprintln!("ERROR: Failed to broadcast: {error}");
-        }
-
-        Some(updated_game)
     }
 
-    pub async fn scores(&self) -> Scores {
-        let game = self.default_game();
-        game.scores()
+    pub fn add_score_for(&self, game_id: u64, team: Team, score: Score) {
+        self.send_command(game_id, GameCommand::AddScore(team, score));
     }
 
-    pub async fn score(&self, team: Team) -> u16 {
-        let game = self.default_game();
-        game.score(team)
+    pub fn resume_for(&self, game_id: u64) {
+        self.send_command(game_id, GameCommand::Resume);
     }
 
-    pub async fn add_score(&self, team: Team, score: Score) {
-        let id = self.default_game().id();
-        self.add_score_for(id, team, score).await;
+    pub fn pause_for(&self, game_id: u64) {
+        self.send_command(game_id, GameCommand::Pause);
     }
 
-    pub async fn add_score_for(&self, game_id: u16, team: Team, score: Score) {
-        self.modify_game(game_id, |game| game.add_score(team, score));
+    pub fn end_for(&self, game_id: u64) {
+        self.send_command(game_id, GameCommand::End);
     }
 
-    pub async fn resume(&self) {
-        let id = self.default_game().id();
-        self.resume_for(id).await;
-    }
-
-    pub async fn resume_for(&self, game_id: u16) {
-        self.modify_game(game_id, Game::resume);
-    }
-
-    pub async fn pause(&self) {
-        let id = self.default_game().id();
-        self.pause_for(id).await;
-    }
-
-    pub async fn pause_for(&self, game_id: u16) {
-        self.modify_game(game_id, Game::pause);
-    }
-
-    pub async fn end_for(&self, game_id: u16) {
-        self.modify_game(game_id, |game| game.set_state(State::GameEnd));
-    }
-
-    pub async fn reset_for(&self, game_id: u16) {
-        self.modify_game(game_id, |game| {
-            *game = Game::new_with_id(game.id(), game.discipline());
-        });
+    pub fn reset_for(&self, game_id: u64) {
+        self.send_command(game_id, GameCommand::Reset);
     }
 }

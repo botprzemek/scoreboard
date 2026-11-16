@@ -17,14 +17,14 @@ pub enum SessionError {
     UnexpectedEvent(ServerEvent),
 }
 
-pub struct Session<T, State> {
+pub struct ClientSession<T, State> {
     transport: T,
     sequence_id: u16,
     session_token: u32,
     _state: PhantomData<State>,
 }
 
-impl<T, State> Session<T, State> {
+impl<T, State> ClientSession<T, State> {
     #[must_use]
     pub fn transport(&self) -> &T {
         &self.transport
@@ -46,12 +46,14 @@ impl<T, State> Session<T, State> {
 
     pub(crate) fn next_sequence_id(&mut self) -> u16 {
         let id = self.sequence_id;
+
         self.sequence_id = self.sequence_id.wrapping_add(1);
+
         id
     }
 }
 
-impl<T> Session<T, Disconnected> {
+impl<T> ClientSession<T, Disconnected> {
     #[must_use]
     pub fn new(transport: T) -> Self {
         Self {
@@ -63,59 +65,59 @@ impl<T> Session<T, Disconnected> {
     }
 }
 
-impl<T: PacketSender + PacketReceiver> Session<T, Disconnected> {
+impl<T: PacketSender + PacketReceiver> ClientSession<T, Disconnected> {
     pub async fn handshake(
         mut self,
         handshake: &Handshake,
-    ) -> Result<Session<T, Connected>, (Self, SessionError)> {
-        let mut data = [0u8; DATA_SIZE];
-        let bytes = handshake.to_bytes();
-        let len = bytes.len().min(DATA_SIZE);
-        data[..len].copy_from_slice(&bytes[..len]);
-
+    ) -> Result<ClientSession<T, Connected>, (Self, SessionError)> {
         let seq = self.next_sequence_id();
-        let packet = ClientPacket::with_session(
-            ClientEvent::HandshakeRequest,
-            seq,
-            0,
-            len as u8,
-            data,
-        );
+        let (len, data) = pad_payload(&handshake.to_bytes());
+        let packet = ClientPacket::with_session(ClientEvent::HandshakeRequest, seq, 0, len, data);
         self.transport.send_packet(&packet.to_bytes()).await;
 
-        let raw = match self.transport.receive_packet().await {
-            Ok(raw) => raw,
-            Err(err) => return Err((self, SessionError::InvalidPacket(err))),
-        };
+        match self.receive_handshake_ack().await {
+            Ok(session_token) => Ok(ClientSession {
+                transport: self.transport,
+                sequence_id: self.sequence_id,
+                session_token,
+                _state: PhantomData,
+            }),
+            Err(err) => Err((self, err)),
+        }
+    }
 
-        let response = match ServerPacket::from_bytes(raw.bytes) {
-            Ok(pkt) => pkt,
-            Err(err) => return Err((self, SessionError::InvalidPacket(err))),
-        };
+    async fn receive_handshake_ack(&mut self) -> Result<u32, SessionError> {
+        let raw = self
+            .transport
+            .receive_packet()
+            .await
+            .map_err(SessionError::InvalidPacket)?;
+        let response =
+            ServerPacket::from_bytes(raw.bytes).map_err(SessionError::InvalidPacket)?;
 
         if response.event() != ServerEvent::HandshakeAck {
-            return Err((self, SessionError::UnexpectedEvent(response.event())));
+            return Err(SessionError::UnexpectedEvent(response.event()));
         }
 
-        let session_token = response.session_token();
-
-        Ok(Session {
-            transport: self.transport,
-            sequence_id: self.sequence_id,
-            session_token,
-            _state: PhantomData,
-        })
+        Ok(response.session_token())
     }
 }
 
-impl<T> Session<T, Connected> {
+fn pad_payload(bytes: &[u8]) -> (u8, [u8; DATA_SIZE]) {
+    let mut data = [0u8; DATA_SIZE];
+    let len = bytes.len().min(DATA_SIZE);
+    data[..len].copy_from_slice(&bytes[..len]);
+    (len as u8, data)
+}
+
+impl<T> ClientSession<T, Connected> {
     #[must_use]
     pub fn session_token(&self) -> u32 {
         self.session_token
     }
 
     #[must_use]
-    pub fn into_game(self, game_id: u16) -> GameSession<T, GameIdle> {
+    pub fn into_game(self, game_id: u64) -> GameSession<T, GameIdle> {
         GameSession::new(self, game_id)
     }
 
@@ -126,11 +128,12 @@ impl<T> Session<T, Connected> {
         data: [u8; DATA_SIZE],
     ) -> ClientPacket {
         let seq = self.next_sequence_id();
+
         ClientPacket::with_session(event, seq, self.session_token, payload_len, data)
     }
 }
 
-impl<T: PacketSender> Session<T, Connected> {
+impl<T: PacketSender> ClientSession<T, Connected> {
     pub(crate) async fn send_event(
         &mut self,
         event: ClientEvent,
@@ -138,6 +141,7 @@ impl<T: PacketSender> Session<T, Connected> {
         data: [u8; DATA_SIZE],
     ) {
         let packet = self.build_packet(event, payload_len, data);
+
         self.transport.send_packet(&packet.to_bytes()).await;
     }
 
@@ -145,33 +149,46 @@ impl<T: PacketSender> Session<T, Connected> {
         let mut data = [0u8; DATA_SIZE];
         let bytes = heartbeat.to_bytes();
         let len = bytes.len().min(DATA_SIZE);
+
         data[..len].copy_from_slice(&bytes[..len]);
+
         self.send_event(ClientEvent::HandshakeHeartbeat, len as u8, data)
             .await;
     }
 
     pub async fn create_game(&mut self, discipline: u8) {
         let mut data = [0u8; DATA_SIZE];
+
         data[0] = discipline;
+
         self.send_event(ClientEvent::GameCreate, 1, data).await;
     }
 
-    pub async fn delete_game(&mut self, game_id: u16) {
-        let mut data = [0u8; DATA_SIZE];
-        data[..2].copy_from_slice(&game_id.to_le_bytes());
-        self.send_event(ClientEvent::GameDelete, 2, data).await;
+    pub async fn delete_game(&mut self, game_id: u64) {
+        let data = Self::game_id_payload(game_id);
+
+        self.send_event(ClientEvent::GameDelete, 8, data).await;
     }
 
-    pub async fn select_game(&mut self, game_id: u16) {
-        let mut data = [0u8; DATA_SIZE];
-        data[..2].copy_from_slice(&game_id.to_le_bytes());
-        self.send_event(ClientEvent::GameSelect, 2, data).await;
+    pub async fn select_game(&mut self, game_id: u64) {
+        let data = Self::game_id_payload(game_id);
+
+        self.send_event(ClientEvent::GameSelect, 8, data).await;
     }
 
-    pub async fn disconnect(mut self) -> Session<T, Disconnected> {
+    fn game_id_payload(game_id: u64) -> [u8; DATA_SIZE] {
+        let mut data = [0u8; DATA_SIZE];
+
+        data[..8].copy_from_slice(&game_id.to_le_bytes());
+
+        data
+    }
+
+    pub async fn disconnect(mut self) -> ClientSession<T, Disconnected> {
         self.send_event(ClientEvent::DeviceDisconnect, 0, [0u8; DATA_SIZE])
             .await;
-        Session {
+
+        ClientSession {
             transport: self.transport,
             sequence_id: self.sequence_id,
             session_token: 0,

@@ -1,7 +1,5 @@
-use std::sync::Arc;
-
-use super::connection;
-use crate::services::Services;
+use super::connection::{self, FalliblePacketSender};
+use crate::services::{DeviceService, GameService};
 
 use axum::body::Bytes;
 use axum::extract::State;
@@ -12,21 +10,25 @@ use axum::routing::{self, Router};
 use futures::SinkExt;
 use futures::stream::{SplitSink, SplitStream, StreamExt};
 use net::layout::PACKET_SIZE;
-use net::{PacketReceiver, PacketSender, RawPacket};
+use net::{PacketReceiver, RawPacket};
+use tokio::net::TcpListener;
+use tokio_util::sync::CancellationToken;
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 
-pub struct WebSocketSender {
+struct WebSocketSender {
     sink: SplitSink<WebSocket, Message>,
 }
 
-impl PacketSender for WebSocketSender {
-    async fn send_packet(&mut self, data: &[u8; PACKET_SIZE]) {
+impl FalliblePacketSender for WebSocketSender {
+    type Error = axum::Error;
+
+    async fn send_packet(&mut self, data: &[u8; PACKET_SIZE]) -> Result<(), Self::Error> {
         let payload = Bytes::copy_from_slice(data);
-        let _ = self.sink.send(Message::Binary(payload)).await;
+        self.sink.send(Message::Binary(payload)).await
     }
 }
 
-pub struct WebSocketReceiver {
+struct WebSocketReceiver {
     stream: SplitStream<WebSocket>,
 }
 
@@ -47,14 +49,35 @@ impl PacketReceiver for WebSocketReceiver {
     }
 }
 
-pub struct WebsocketHandler;
+pub(super) struct WebsocketHandler;
 
 impl WebsocketHandler {
-    pub fn router(services: Arc<Services>, cors_origins: &[String]) -> Router {
+    pub(super) async fn run(
+        listener: TcpListener,
+        game: GameService,
+        devices: DeviceService,
+        cors_origins: &[String],
+        shutdown: CancellationToken,
+    ) {
+        let router = Self::router(game, devices, cors_origins, shutdown.clone());
+        if let Err(error) = axum::serve(listener, router)
+            .with_graceful_shutdown(shutdown.cancelled_owned())
+            .await
+        {
+            tracing::error!("HTTP server failed: {error}");
+        }
+    }
+
+    fn router(
+        game: GameService,
+        devices: DeviceService,
+        cors_origins: &[String],
+        shutdown: CancellationToken,
+    ) -> Router {
         Router::new()
             .route("/ws", routing::get(Self::handle))
             .layer(Self::cors_layer(cors_origins))
-            .with_state(services)
+            .with_state((game, devices, shutdown))
     }
 
     fn cors_layer(cors_origins: &[String]) -> CorsLayer {
@@ -67,11 +90,16 @@ impl WebsocketHandler {
             .filter_map(|origin| match HeaderValue::from_str(origin) {
                 Ok(value) => Some(value),
                 Err(error) => {
-                    eprintln!("WARN: Ignoring invalid CORS origin '{origin}': {error}");
+                    tracing::warn!("Ignoring invalid CORS origin '{origin}': {error}");
                     None
                 }
             })
             .collect();
+
+        if origins.is_empty() {
+            tracing::error!("All configured CORS origins are invalid; falling back to permissive CORS");
+            return CorsLayer::permissive();
+        }
 
         CorsLayer::new()
             .allow_origin(AllowOrigin::list(origins))
@@ -79,18 +107,23 @@ impl WebsocketHandler {
             .allow_headers(Any)
     }
 
-    async fn upgrade(socket: WebSocket, services: Arc<Services>) {
+    async fn upgrade(
+        socket: WebSocket,
+        game: GameService,
+        devices: DeviceService,
+        shutdown: CancellationToken,
+    ) {
         let (sink, stream) = socket.split();
         let sender = WebSocketSender { sink };
         let receiver = WebSocketReceiver { stream };
 
-        connection::run(receiver, sender, services).await;
+        connection::run(receiver, sender, game, devices, shutdown).await;
     }
 
     async fn handle(
         websocket: WebSocketUpgrade,
-        State(services): State<Arc<Services>>,
+        State((game, devices, shutdown)): State<(GameService, DeviceService, CancellationToken)>,
     ) -> impl IntoResponse {
-        websocket.on_upgrade(move |socket| Self::upgrade(socket, services))
+        websocket.on_upgrade(move |socket| Self::upgrade(socket, game, devices, shutdown))
     }
 }

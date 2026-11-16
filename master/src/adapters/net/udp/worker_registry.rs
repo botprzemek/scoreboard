@@ -1,321 +1,240 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use crate::services::{Observable, Services};
+use crate::services::{DeviceGameAssignment, DeviceService, GameService};
 
 use basketball::{Discipline, Game};
-use net::ServerSession;
-use net::server_state;
-use tokio::net::UdpSocket;
-use tokio::sync::watch;
-use tokio::time::{self, MissedTickBehavior};
+use net::layout::PACKET_SIZE;
+use net::{Registered, ServerSession};
 
-const SYNC_HEARTBEAT_DURATION: Duration = Duration::from_nanos(1_000_000_000 / 60);
-
-#[derive(Clone)]
-pub(crate) struct ActiveWorker {
-    pub(crate) address: SocketAddr,
-    pub(crate) serial_number: String,
-    pub(crate) session: ServerSession<server_state::Registered>,
-    pub(crate) last_seen: Instant,
+pub(super) struct ActiveWorker {
+    pub(super) address: SocketAddr,
+    pub(super) serial_number: String,
+    pub(super) game_id: u64,
+    pub(super) session: ServerSession<Registered>,
+    pub(super) last_seen: Instant,
 }
 
 impl ActiveWorker {
-    fn matches_session(&self, remote_address: SocketAddr, packet_token: u32) -> bool {
-        self.address == remote_address && self.session.session_token() == packet_token
-    }
-
     fn token_and_moved(&self, remote_address: SocketAddr) -> (u32, bool) {
         (self.session.session_token(), self.address != remote_address)
     }
 }
 
-#[derive(Clone)]
-pub(crate) struct WorkerRegistry {
-    tx: watch::Sender<HashMap<String, ActiveWorker>>,
+pub(super) struct WorkerRegistry {
+    workers: HashMap<String, ActiveWorker>,
+    addr_token_index: HashMap<(SocketAddr, u32), String>,
+    workers_by_game: HashMap<u64, HashSet<String>>,
+    last_sent_games: HashMap<String, Game>,
 }
 
 impl WorkerRegistry {
-    pub(crate) fn new() -> Self {
-        let (tx, _) = watch::channel(HashMap::new());
-        Self { tx }
+    pub(super) fn new() -> Self {
+        Self {
+            workers: HashMap::new(),
+            addr_token_index: HashMap::new(),
+            workers_by_game: HashMap::new(),
+            last_sent_games: HashMap::new(),
+        }
     }
 
-    pub(crate) fn touch_heartbeat(
-        &self,
+    pub(super) fn touch_heartbeat(
+        &mut self,
         remote_address: SocketAddr,
         packet_token: u32,
-    ) -> Option<ActiveWorker> {
-        let now = Instant::now();
-        let mut matched = None;
-        self.tx.send_modify(|workers| {
-            matched = Self::refresh_worker_heartbeat(workers, remote_address, packet_token, now);
-        });
-        matched
+    ) -> Option<&mut ActiveWorker> {
+        let serial = self.addr_token_index.get(&(remote_address, packet_token))?;
+        let worker = self.workers.get_mut(serial)?;
+        worker.last_seen = Instant::now();
+        Some(worker)
     }
 
-    pub(crate) fn existing_token(
+    pub(super) fn active_address(&self, serial_number: &str) -> Option<SocketAddr> {
+        self.workers.get(serial_number).map(|w| w.address)
+    }
+
+    pub(super) fn existing_token(
         &self,
         serial_number: &str,
         remote_address: SocketAddr,
     ) -> Option<(u32, bool)> {
-        let workers = self.tx.borrow();
-        workers
+        self.workers
             .get(serial_number)
             .map(|existing| existing.token_and_moved(remote_address))
     }
 
-    pub(crate) fn upsert(
-        &self,
+    pub(super) fn upsert(
+        &mut self,
         serial_number: String,
         address: SocketAddr,
-        session: ServerSession<server_state::Registered>,
+        game_id: u64,
+        session: ServerSession<Registered>,
     ) {
-        let worker = ActiveWorker {
-            address,
-            serial_number: serial_number.clone(),
-            session,
-            last_seen: Instant::now(),
-        };
-        self.tx
-            .send_modify(|workers| Self::insert_worker(workers, serial_number, worker));
-    }
-
-    fn insert_worker(
-        workers: &mut HashMap<String, ActiveWorker>,
-        serial_number: String,
-        worker: ActiveWorker,
-    ) {
-        workers.insert(serial_number, worker);
-    }
-
-    pub(crate) fn remove(&self, serial_number: &str) -> bool {
-        let mut removed = false;
-        self.tx.send_modify(|workers| {
-            removed = workers.remove(serial_number).is_some();
-        });
-        removed
-    }
-
-    pub(crate) fn spawn_watchdog(&self, services: Arc<Services>, worker_timeout: Duration) {
-        tokio::spawn(Self::run_watchdog(
-            self.tx.clone(),
-            services,
-            worker_timeout,
-        ));
-    }
-
-    async fn run_watchdog(
-        tx: watch::Sender<HashMap<String, ActiveWorker>>,
-        services: Arc<Services>,
-        worker_timeout: Duration,
-    ) {
-        let mut interval = time::interval(Duration::from_secs(1));
-        interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
-
-        loop {
-            interval.tick().await;
-            Self::prune_timed_out_workers(&tx, &services, worker_timeout);
+        if let Some((old_addr, old_token, old_game_id)) = self
+            .workers
+            .get(&serial_number)
+            .map(|e| (e.address, e.session.session_token(), e.game_id))
+        {
+            self.addr_token_index.remove(&(old_addr, old_token));
+            if old_game_id != game_id {
+                self.remove_from_game_index(old_game_id, &serial_number);
+            }
+            if old_addr != address || old_token != session.session_token() {
+                self.last_sent_games.remove(&serial_number);
+            }
         }
+
+        self.addr_token_index.insert(
+            (address, session.session_token()),
+            serial_number.clone(),
+        );
+        if game_id != 0 {
+            self.workers_by_game
+                .entry(game_id)
+                .or_default()
+                .insert(serial_number.clone());
+        }
+
+        self.workers.insert(
+            serial_number.clone(),
+            ActiveWorker {
+                address,
+                serial_number,
+                game_id,
+                session,
+                last_seen: Instant::now(),
+            },
+        );
     }
 
-    fn prune_timed_out_workers(
-        tx: &watch::Sender<HashMap<String, ActiveWorker>>,
-        services: &Services,
-        worker_timeout: Duration,
-    ) {
-        let now = Instant::now();
-        let mut timed_out_serials = Vec::new();
+    pub(super) fn remove(&mut self, serial_number: &str) -> bool {
+        self.last_sent_games.remove(serial_number);
+        let Some(removed) = self.workers.remove(serial_number) else {
+            return false;
+        };
+        self.addr_token_index
+            .remove(&(removed.address, removed.session.session_token()));
+        self.remove_from_game_index(removed.game_id, serial_number);
+        true
+    }
 
-        tx.send_modify(|workers| {
-            Self::retain_active_workers(workers, now, worker_timeout, &mut timed_out_serials);
-        });
+    pub(super) fn prune_timed_out(&mut self, worker_timeout: Duration, devices: &DeviceService) {
+        let now = Instant::now();
+        let timed_out_serials: Vec<String> = self
+            .workers
+            .iter()
+            .filter(|&(_, worker)| now.duration_since(worker.last_seen) > worker_timeout)
+            .map(|(sn, _)| sn.clone())
+            .collect();
 
         for sn in timed_out_serials {
-            println!(
-                "INFO: [UDP] Worker sn={sn} timed out ({}s without heartbeat) -> offline",
+            self.remove(&sn);
+            tracing::info!(
+                "[UDP] Worker sn={sn} timed out ({}s without heartbeat) -> offline",
                 worker_timeout.as_secs()
             );
-            services.devices().disconnect_by_serial(&sn);
+            devices.disconnect_by_serial(&sn);
         }
     }
 
-    fn retain_active_workers(
-        workers: &mut HashMap<String, ActiveWorker>,
-        now: Instant,
-        worker_timeout: Duration,
-        timed_out_serials: &mut Vec<String>,
+    pub(super) fn collect_tick_updates(
+        &mut self,
+        game_service: &GameService,
+        mut try_send: impl FnMut(SocketAddr, [u8; PACKET_SIZE]) -> bool,
     ) {
-        workers.retain(|sn, worker| {
-            let expired = now.duration_since(worker.last_seen) > worker_timeout;
-            if expired {
-                timed_out_serials.push(sn.clone());
-            }
-            !expired
-        });
+        let game_ids: Vec<u64> = self.workers_by_game.keys().copied().collect();
+        for game_id in game_ids {
+            let Some(game) = game_service.by_id(game_id) else {
+                continue;
+            };
+            self.send_game_to_subscribers(game_id, game, &mut try_send);
+        }
     }
 
-    pub(crate) fn spawn_tick_sync(&self, socket: Arc<UdpSocket>, services: Arc<Services>) {
-        tokio::spawn(Self::run_tick_sync(self.tx.subscribe(), socket, services));
-    }
-
-    fn refresh_worker_heartbeat(
-        workers: &mut HashMap<String, ActiveWorker>,
-        remote_address: SocketAddr,
-        packet_token: u32,
-        now: Instant,
-    ) -> Option<ActiveWorker> {
-        let worker = workers
-            .values_mut()
-            .find(|worker| worker.matches_session(remote_address, packet_token))?;
-        worker.last_seen = now;
-        Some(worker.clone())
-    }
-
-    async fn run_tick_sync(
-        mut worker_rx: watch::Receiver<HashMap<String, ActiveWorker>>,
-        socket: Arc<UdpSocket>,
-        services: Arc<Services>,
+    pub(super) fn collect_broadcast_updates(
+        &mut self,
+        games: &[Game],
+        mut try_send: impl FnMut(SocketAddr, [u8; PACKET_SIZE]) -> bool,
     ) {
-        let mut interval = time::interval(SYNC_HEARTBEAT_DURATION);
-        interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
-        let mut assignment_rx = services.devices().subscribe_game_assign();
-        let mut broadcast_rx = services.game().subscribe();
-        let mut active_workers: HashMap<String, ActiveWorker> = HashMap::new();
-        let mut last_sent_games: HashMap<String, Game> = HashMap::new();
-
-        loop {
-            tokio::select! {
-                _ = interval.tick() => {
-                    Self::sync_tick_workers(&socket, &services, &mut active_workers, &mut last_sent_games).await;
-                }
-
-                Ok(()) = worker_rx.changed() => {
-                    let latest = worker_rx.borrow_and_update().clone();
-                    Self::merge_active_workers(&mut active_workers, latest, &mut last_sent_games);
-                }
-
-                Ok(assignment) = assignment_rx.recv() => {
-                    Self::sync_assignment(&socket, &services, &mut active_workers, &assignment, &mut last_sent_games).await;
-                }
-
-                Ok(games) = broadcast_rx.recv() => {
-                    Self::sync_broadcast_games(&socket, &services, &mut active_workers, &games, &mut last_sent_games).await;
-                }
+        for &game in games {
+            let game_id = game.id();
+            if self.workers_by_game.contains_key(&game_id) {
+                self.send_game_to_subscribers(game_id, game, &mut try_send);
             }
         }
     }
 
-    fn merge_active_workers(
-        active_workers: &mut HashMap<String, ActiveWorker>,
-        latest: HashMap<String, ActiveWorker>,
-        last_sent_games: &mut HashMap<String, Game>,
+    pub(super) fn collect_assignment_update(
+        &mut self,
+        game_service: &GameService,
+        assignment: &DeviceGameAssignment,
+        mut try_send: impl FnMut(SocketAddr, [u8; PACKET_SIZE]) -> bool,
     ) {
-        active_workers.retain(|serial, _| latest.contains_key(serial));
-        last_sent_games.retain(|serial, _| latest.contains_key(serial));
-
-        for (serial, incoming) in latest {
-            match active_workers.get_mut(&serial) {
-                Some(existing)
-                    if existing.address == incoming.address
-                        && existing.session.session_token()
-                            == incoming.session.session_token() =>
-                {
-                    existing.last_seen = incoming.last_seen;
-                }
-                _ => {
-                    last_sent_games.remove(&serial);
-                    active_workers.insert(serial, incoming);
-                }
-            }
-        }
-    }
-
-    async fn sync_tick_workers(
-        socket: &UdpSocket,
-        services: &Services,
-        active_workers: &mut HashMap<String, ActiveWorker>,
-        last_sent_games: &mut HashMap<String, Game>,
-    ) {
-        let updates: Vec<(&mut ActiveWorker, Game)> = active_workers
-            .values_mut()
-            .filter_map(|worker| {
-                let game_id = services.devices().game_id_by_serial(&worker.serial_number)?;
-                if game_id == 0 {
-                    return None;
-                }
-                let game = services.game().by_id(game_id)?;
-                Some((worker, game))
-            })
-            .collect();
-
-        for (worker, game) in updates {
-            Self::send_game_if_changed(socket, worker, game, last_sent_games).await;
-        }
-    }
-
-    async fn sync_assignment(
-        socket: &UdpSocket,
-        services: &Services,
-        active_workers: &mut HashMap<String, ActiveWorker>,
-        assignment: &crate::services::DeviceGameAssignment,
-        last_sent_games: &mut HashMap<String, Game>,
-    ) {
-        let worker = match active_workers.get_mut(&assignment.serial_number) {
-            Some(worker) => worker,
-            None => return,
+        let Some(old_game_id) = self.workers.get(&assignment.serial_number).map(|w| w.game_id)
+        else {
+            return;
         };
 
-        let game = if assignment.game_id != 0 {
-            services.game().by_id(assignment.game_id)
-        } else {
-            None
+        if old_game_id != assignment.game_id {
+            self.remove_from_game_index(old_game_id, &assignment.serial_number);
+            if assignment.game_id != 0 {
+                self.workers_by_game
+                    .entry(assignment.game_id)
+                    .or_default()
+                    .insert(assignment.serial_number.clone());
+            }
         }
-        .unwrap_or_else(|| Game::new_with_id(0, Discipline::Fiba5v5));
 
-        last_sent_games.insert(worker.serial_number.clone(), game);
+        let Some(worker) = self.workers.get_mut(&assignment.serial_number) else {
+            return;
+        };
+        worker.game_id = assignment.game_id;
+
+        let game = (assignment.game_id != 0)
+            .then(|| game_service.by_id(assignment.game_id))
+            .flatten()
+            .unwrap_or_else(|| Game::new_with_id(0, Discipline::Fiba5v5));
+
         let packet = worker.session.send_game_update(game.to_bytes());
-        let _ = socket.send_to(&packet.to_bytes(), worker.address).await;
-    }
-
-    async fn sync_broadcast_games(
-        socket: &UdpSocket,
-        services: &Services,
-        active_workers: &mut HashMap<String, ActiveWorker>,
-        games: &[Game],
-        last_sent_games: &mut HashMap<String, Game>,
-    ) {
-        let updates: Vec<(&mut ActiveWorker, Game)> = active_workers
-            .values_mut()
-            .filter_map(|worker| {
-                let game_id = services.devices().game_id_by_serial(&worker.serial_number)?;
-                if game_id == 0 {
-                    return None;
-                }
-                let game = games.iter().find(|entry| entry.id() == game_id).copied()?;
-                Some((worker, game))
-            })
-            .collect();
-
-        for (worker, game) in updates {
-            Self::send_game_if_changed(socket, worker, game, last_sent_games).await;
+        if try_send(worker.address, packet.to_bytes()) {
+            self.last_sent_games
+                .insert(worker.serial_number.clone(), game);
         }
     }
 
-    async fn send_game_if_changed(
-        socket: &UdpSocket,
-        worker: &mut ActiveWorker,
+    fn send_game_to_subscribers(
+        &mut self,
+        game_id: u64,
         game: Game,
-        last_sent_games: &mut HashMap<String, Game>,
+        try_send: &mut impl FnMut(SocketAddr, [u8; PACKET_SIZE]) -> bool,
     ) {
-        if last_sent_games.get(&worker.serial_number) == Some(&game) {
+        let Some(serials) = self.workers_by_game.get(&game_id) else {
+            return;
+        };
+        for serial in serials {
+            if self.last_sent_games.get(serial) == Some(&game) {
+                continue;
+            }
+            let Some(worker) = self.workers.get_mut(serial) else {
+                continue;
+            };
+            let packet = worker.session.send_game_update(game.to_bytes());
+            if try_send(worker.address, packet.to_bytes()) {
+                self.last_sent_games.insert(serial.clone(), game);
+            }
+        }
+    }
+
+    fn remove_from_game_index(&mut self, game_id: u64, serial_number: &str) {
+        if game_id == 0 {
             return;
         }
-
-        last_sent_games.insert(worker.serial_number.clone(), game);
-        let packet = worker.session.send_game_update(game.to_bytes());
-        let _ = socket.send_to(&packet.to_bytes(), worker.address).await;
+        if let Some(set) = self.workers_by_game.get_mut(&game_id) {
+            set.remove(serial_number);
+            if set.is_empty() {
+                self.workers_by_game.remove(&game_id);
+            }
+        }
     }
 }

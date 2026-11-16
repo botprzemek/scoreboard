@@ -57,10 +57,10 @@ pub fn App() -> impl IntoView {
         }
     });
 
-    let master_nav = master.clone();
-    let master_desktop_sidebar = master.clone();
-    let master_mobile_sidebar = master.clone();
-    let master_main = master.clone();
+    let master_nav = master;
+    let master_desktop_sidebar = master;
+    let master_mobile_sidebar = master;
+    let master_main = master;
 
     view! {
         <div class="w-screen h-screen flex flex-col bg-background text-foreground select-none overflow-hidden font-sans">
@@ -126,7 +126,7 @@ pub fn App() -> impl IntoView {
             <div class="relative flex flex-1 min-h-0 overflow-hidden">
                 // Desktop macOS Sidebar
                 <div class="hidden md:block w-64 lg:w-72 shrink-0 h-full">
-                    <SidebarPanel master=master_desktop_sidebar.clone() />
+                    <SidebarPanel master=master_desktop_sidebar />
                 </div>
 
                 // Mobile Slide-over Sidebar Drawer
@@ -140,16 +140,15 @@ pub fn App() -> impl IntoView {
                             on:click=move |ev| ev.stop_propagation()
                         >
                             <SidebarPanel
-                                master=master_mobile_sidebar.clone()
+                                master=master_mobile_sidebar
                                 on_close_mobile=Callback::new(move |()| is_mobile_sidebar_open.set(false))
                             />
                         </div>
                     </div>
                 </Show>
 
-                // Main macOS Game Workspace
                 <ScoreboardView
-                    master=master_main.clone()
+                    master=master_main
                     role_mode=role_mode
                 />
             </div>

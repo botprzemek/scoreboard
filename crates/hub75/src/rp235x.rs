@@ -27,7 +27,6 @@ pub struct LedPeripherals {
 }
 
 impl LedPeripherals {
-
     #[must_use]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -80,7 +79,6 @@ impl OutputPin for Output<'_> {
 }
 
 impl LedOutputs<Output<'static>> {
-
     #[must_use]
     pub fn from_peripherals(peripherals: LedPeripherals) -> Self {
         Self::from(peripherals)

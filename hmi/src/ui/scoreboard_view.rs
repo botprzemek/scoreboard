@@ -1,8 +1,6 @@
 use crate::components::ui::badge::{Badge, BadgeVariant};
 use crate::components::ui::button::{Button, ButtonSize, ButtonVariant};
-use crate::components::ui::card::{
-    Card, CardContent, CardDescription, CardHeader, CardTitle,
-};
+use crate::components::ui::card::{Card, CardContent, CardDescription, CardHeader, CardTitle};
 use crate::components::ui::separator::Separator;
 use crate::master::MasterContext;
 use basketball::{Discipline, Quarter, Score, State, Team};
@@ -40,24 +38,21 @@ fn format_state(state: State) -> (&'static str, BadgeVariant) {
 }
 
 #[component]
-pub fn ScoreboardView(
-    master: MasterContext,
-    role_mode: RwSignal<HmiRoleMode>,
-) -> impl IntoView {
+pub fn ScoreboardView(master: MasterContext, role_mode: RwSignal<HmiRoleMode>) -> impl IntoView {
     let logs_expanded = RwSignal::new(false);
 
-    let m_start = master.clone();
-    let m_resume = master.clone();
-    let m_pause = master.clone();
-    let m_end = master.clone();
-    let m_reset = master.clone();
+    let m_start = master;
+    let m_resume = master;
+    let m_pause = master;
+    let m_end = master;
+    let m_reset = master;
 
-    let m_home_1 = master.clone();
-    let m_home_2 = master.clone();
-    let m_home_3 = master.clone();
-    let m_away_1 = master.clone();
-    let m_away_2 = master.clone();
-    let m_away_3 = master.clone();
+    let m_home_1 = master;
+    let m_home_2 = master;
+    let m_home_3 = master;
+    let m_away_1 = master;
+    let m_away_2 = master;
+    let m_away_3 = master;
 
     let disconnected = Signal::derive(move || !master.is_connected.get());
 

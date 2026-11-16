@@ -8,11 +8,13 @@ mod quarter;
 mod score;
 mod state;
 mod team;
+mod time;
 
 pub use discipline::{Discipline, DisciplineConfig};
-pub use game::{ClockTime, Game, RegulationTime};
+pub use game::Game;
 pub use game_machine::{GameMachine, state_machine};
 pub use quarter::Quarter;
 pub use score::{Scorable, Score, ScoreRead, ScoreWrite, Scores};
 pub use state::State;
 pub use team::Team;
+pub use time::{ClockTime, RegulationTime};

@@ -5,6 +5,7 @@ use crate::output::{OutputPin, PinLevel};
 const fn build_pixel_lut() -> [u32; 64] {
     let mut lut = [0u32; 64];
     let mut i = 0;
+
     while i < 64 {
         let m = i as u32;
         let r1 = (m & 1) << 2;
@@ -16,6 +17,7 @@ const fn build_pixel_lut() -> [u32; 64] {
         lut[i] = r1 | g1 | b1 | r2 | g2 | b2;
         i += 1;
     }
+
     lut
 }
 

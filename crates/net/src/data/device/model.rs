@@ -1,13 +1,11 @@
 use core::str;
 
 use super::layout;
-use crate::define_event;
 use crate::{ClientPacket, ServerPacket};
 
 use config::{ConfigError, DeviceConfig};
 
 define_event! {
-
     #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
     pub enum DeviceType {
         Worker = 0x01,
@@ -21,13 +19,12 @@ define_event! {
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Device {
     device_type: DeviceType,
-    game_id: u16,
+    game_id: u64,
     serial_number: [u8; layout::SERIAL_NUMBER_SIZE],
     device_id: [u8; layout::DEVICE_ID_SIZE],
 }
 
 impl Device {
-
     pub fn try_new(
         device_type: DeviceType,
         serial_number: &str,
@@ -43,7 +40,7 @@ impl Device {
 
     pub fn try_new_with_game_id(
         device_type: DeviceType,
-        game_id: u16,
+        game_id: u64,
         serial_number: &str,
         device_id: &str,
     ) -> Result<Self, ConfigError> {
@@ -77,11 +74,11 @@ impl Device {
     }
 
     #[must_use]
-    pub fn game_id(&self) -> u16 {
+    pub fn game_id(&self) -> u64 {
         self.game_id
     }
 
-    pub fn set_game_id(&mut self, game_id: u16) {
+    pub fn set_game_id(&mut self, game_id: u64) {
         self.game_id = game_id;
     }
 
@@ -117,7 +114,7 @@ impl Device {
 
         let device_type = DeviceType::try_from(buffer[layout::DEVICE_TYPE])?;
 
-        let mut game_id_bytes = [0u8; 2];
+        let mut game_id_bytes = [0u8; layout::GAME_ID_SIZE];
         let mut serial_number = [0u8; layout::SERIAL_NUMBER_SIZE];
         let mut device_id = [0u8; layout::DEVICE_ID_SIZE];
 
@@ -126,7 +123,7 @@ impl Device {
             .copy_from_slice(&buffer[layout::SERIAL_NUMBER_START..layout::SERIAL_NUMBER_END]);
         device_id.copy_from_slice(&buffer[layout::DEVICE_ID_START..layout::DEVICE_ID_END]);
 
-        let game_id = u16::from_be_bytes(game_id_bytes);
+        let game_id = u64::from_be_bytes(game_id_bytes);
 
         let device = Self {
             device_type,

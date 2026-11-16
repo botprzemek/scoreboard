@@ -47,15 +47,15 @@ impl Handshake {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct HandshakeAck {
-    assigned_game_id: u16,
+    assigned_game_id: u64,
     flags: u8,
 }
 
 impl HandshakeAck {
-    pub const PAYLOAD_LEN: u8 = 3;
+    pub const PAYLOAD_LEN: u8 = 9;
 
     #[must_use]
-    pub const fn new(assigned_game_id: u16, flags: u8) -> Self {
+    pub const fn new(assigned_game_id: u64, flags: u8) -> Self {
         Self {
             assigned_game_id,
             flags,
@@ -63,7 +63,7 @@ impl HandshakeAck {
     }
 
     #[must_use]
-    pub const fn assigned_game_id(&self) -> u16 {
+    pub const fn assigned_game_id(&self) -> u64 {
         self.assigned_game_id
     }
 
@@ -75,14 +75,21 @@ impl HandshakeAck {
     #[must_use]
     pub fn to_bytes(&self) -> [u8; DATA_SIZE] {
         let mut buffer = [0u8; DATA_SIZE];
-        buffer[0..2].copy_from_slice(&self.assigned_game_id.to_be_bytes());
-        buffer[2] = self.flags;
+        
+        buffer[0..8].copy_from_slice(&self.assigned_game_id.to_be_bytes());
+        buffer[8] = self.flags;
+
         buffer
     }
 
     pub fn from_bytes(buffer: &[u8; DATA_SIZE]) -> Result<Self, &'static str> {
-        let game_id = u16::from_be_bytes([buffer[0], buffer[1]]);
-        let flags = buffer[2];
+        let mut game_id_bytes = [0u8; core::mem::size_of::<u64>()];
+
+        game_id_bytes.copy_from_slice(&buffer[0..8]);
+
+        let game_id = u64::from_be_bytes(game_id_bytes);
+        let flags = buffer[8];
+
         Ok(Self {
             assigned_game_id: game_id,
             flags,

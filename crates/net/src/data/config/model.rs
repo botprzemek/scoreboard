@@ -70,9 +70,11 @@ impl DeviceConfig {
         if bytes.len() != layout::TOTAL_SIZE {
             return Err("invalid_size");
         }
+
         if bytes[layout::MAGIC] != CONFIG_PACKET_MAGIC {
             return Err("magic");
         }
+
         if bytes[layout::EVENT] != 0x42 {
             return Err("event");
         }
@@ -81,9 +83,11 @@ impl DeviceConfig {
             ^ bytes[layout::EVENT]
             ^ bytes[layout::SEQUENCE_ID]
             ^ bytes[layout::VERSION];
+
         for &b in &bytes[4..164] {
             expected_crc ^= b;
         }
+
         if bytes[layout::CRC] != expected_crc {
             return Err("crc");
         }
@@ -127,13 +131,16 @@ impl DeviceConfig {
         if bytes.len() >= dest.len() {
             return Err(ConfigError::StringTooLong);
         }
+
         dest.fill(0);
         dest[..bytes.len()].copy_from_slice(bytes);
+
         Ok(())
     }
 
     fn parse_str(buf: &[u8]) -> Result<&str, ConfigError> {
         let len = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
+
         str::from_utf8(&buf[..len]).map_err(|_| ConfigError::InvalidEncoding)
     }
 }

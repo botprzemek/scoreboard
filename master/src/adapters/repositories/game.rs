@@ -1,4 +1,4 @@
-use crate::adapters::data::{DataProvider, GAMES};
+use crate::adapters::data::{DataProvider, Table};
 use crate::adapters::repositories::Repository;
 
 use basketball::Game;
@@ -8,13 +8,13 @@ pub struct GameRepository {
     database: DataProvider,
 }
 
-impl Repository<[Game]> for GameRepository {
+impl Repository<Game> for GameRepository {
     type Output = Vec<Game>;
 
-    fn select(&self) -> Vec<Game> {
+    fn select(&self) -> Result<Vec<Game>, String> {
         let mut games: Vec<Game> = self
             .database
-            .read_all(GAMES)
+            .read_all(Table::Games)?
             .into_iter()
             .filter_map(Self::decode_entry)
             .map(Self::with_entry_id)
@@ -22,16 +22,23 @@ impl Repository<[Game]> for GameRepository {
 
         games.sort_by_key(Game::id);
         games.dedup_by_key(|game| game.id());
-        games
+        Ok(games)
     }
 
-    fn upsert(&self, entities: &[Game]) {
+    fn upsert_many(&self, entities: &[Game]) -> Result<(), String> {
+        if entities.is_empty() {
+            return Ok(());
+        }
         let entries = entities
             .iter()
             .map(Self::to_entry)
             .collect::<Vec<(String, Vec<u8>)>>();
 
-        self.database.replace_all(GAMES, &entries);
+        self.database.upsert_many(Table::Games, &entries)
+    }
+
+    fn delete_many(&self, keys: &[String]) -> Result<(), String> {
+        self.database.delete_many(Table::Games, keys)
     }
 }
 
@@ -48,13 +55,17 @@ impl GameRepository {
     }
 
     fn decode_entry((key, value): (String, Vec<u8>)) -> Option<(String, Game)> {
-        let game = Game::from_bytes(&value).ok()?;
-
-        Some((key, game))
+        match Game::from_bytes(&value) {
+            Ok(game) => Some((key, game)),
+            Err(error) => {
+                tracing::warn!("Skipping invalid game record for key '{key}': {error}");
+                None
+            }
+        }
     }
 
     fn with_entry_id((key, mut game): (String, Game)) -> Game {
-        let key = match key.parse::<u16>() {
+        let key = match key.parse::<u64>() {
             Ok(key) => key,
             Err(_) => return game,
         };

@@ -9,10 +9,7 @@ use icons::{RefreshCw, Server, X};
 use leptos::prelude::*;
 
 #[component]
-pub fn MasterDialog(
-    open: RwSignal<bool>,
-    master: MasterContext,
-) -> impl IntoView {
+pub fn MasterDialog(open: RwSignal<bool>, master: MasterContext) -> impl IntoView {
     let draft_addr = RwSignal::new(master.master_address.get_untracked());
 
     Effect::new(move |_| {
@@ -21,8 +18,8 @@ pub fn MasterDialog(
         }
     });
 
-    let master_save = master.clone();
-    let master_reconnect = master.clone();
+    let master_save = master;
+    let master_reconnect = master;
 
     view! {
         <Show when=move || open.get()>

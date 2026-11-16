@@ -25,9 +25,8 @@ pub trait FlashReader<'flash> {
 
 #[cfg(any(feature = "flash", not(feature = "std")))]
 pub trait FlashWriter {
-
     #[cfg(feature = "flash")]
-    fn write(self);
+    fn write(self) -> Result<(), ConfigError>;
 }
 
 #[cfg(any(feature = "flash", not(feature = "std")))]
@@ -40,11 +39,9 @@ impl<'flash> FlashReader<'flash> for Config {
         let lister = Lister::new();
         let probes = lister.list_all();
 
-        if probes.is_empty() {
-            return Err(ConfigError::FileNotFound);
-        }
+        let first_probe = probes.first().ok_or(ConfigError::FileNotFound)?;
 
-        let mut probe = lister.open(&probes[0]).map_err(|error| {
+        let mut probe = lister.open(first_probe).map_err(|error| {
             eprintln!("failed to open debug probe: {error:?}");
             ConfigError::FileNotFound
         })?;
@@ -53,11 +50,13 @@ impl<'flash> FlashReader<'flash> for Config {
 
         let mut session = probe
             .attach("RP2350", Permissions::default())
-            .expect("failed to attach to RP2350 target");
-        let mut core = session.core(0).expect("failed to attach to core 0");
-        let address: u64 = CONFIG_ADDR.try_into().expect("CONFIG_ADDR fits into u64");
+            .map_err(|_| ConfigError::Io(std::io::ErrorKind::Other))?;
+        let mut core = session
+            .core(0)
+            .map_err(|_| ConfigError::Io(std::io::ErrorKind::Other))?;
+        let address = u64::try_from(CONFIG_ADDR).map_err(|_| ConfigError::Serialization)?;
         core.read_8(address, &mut buffer)
-            .expect("failed to read configuration from flash");
+            .map_err(|_| ConfigError::Io(std::io::ErrorKind::Other))?;
         let raw = Config::<Raw>::from_bytes(&buffer)?;
 
         raw.verify().cloned()
@@ -65,7 +64,6 @@ impl<'flash> FlashReader<'flash> for Config {
 
     #[cfg(not(feature = "std"))]
     fn read() -> Result<&'flash Self, ConfigError> {
-
         unsafe {
             let bytes = core::slice::from_raw_parts(CONFIG_ADDR as *const u8, CONFIG_SIZE);
             let raw = Config::<Raw>::from_bytes(bytes)?;
@@ -77,32 +75,40 @@ impl<'flash> FlashReader<'flash> for Config {
 
 #[cfg(feature = "flash")]
 impl FlashWriter for Config {
-    fn write(self) {
+    fn write(self) -> Result<(), ConfigError> {
         let lister = Lister::new();
         let probes = lister.list_all();
 
-        assert!(!probes.is_empty(), "no debug probes found");
+        let first_probe = probes.first().ok_or(ConfigError::FileNotFound)?;
 
-        let mut probe = lister.open(&probes[0]).expect("failed to open debug probe");
+        let mut probe = lister.open(first_probe).map_err(|error| {
+            eprintln!("failed to open debug probe: {error:?}");
+            ConfigError::FileNotFound
+        })?;
 
         let _ = probe.set_speed(5000);
 
         let mut session = probe
             .attach("RP2350", Permissions::default())
-            .expect("failed to attach to RP2350 target");
+            .map_err(|_| ConfigError::Io(std::io::ErrorKind::Other))?;
 
         let mut loader = session.target().flash_loader();
-        let address: u64 = CONFIG_ADDR.try_into().expect("CONFIG_ADDR fits into u64");
+        let address = u64::try_from(CONFIG_ADDR).map_err(|_| ConfigError::Serialization)?;
         loader
             .add_data(address, self.as_bytes())
-            .expect("failed to stage configuration data for flash loader");
+            .map_err(|_| ConfigError::Serialization)?;
         loader
             .commit(&mut session, DownloadOptions::default())
-            .expect("failed to commit configuration data to flash");
+            .map_err(|_| ConfigError::Io(std::io::ErrorKind::Other))?;
 
-        let mut core = session.core(0).expect("failed to attach to core 0");
+        let mut core = session
+            .core(0)
+            .map_err(|_| ConfigError::Io(std::io::ErrorKind::Other))?;
         core.reset_and_halt(Duration::from_millis(500))
-            .expect("failed to reset and halt core 0");
-        core.run().expect("failed to resume core 0 execution");
+            .map_err(|_| ConfigError::Io(std::io::ErrorKind::Other))?;
+        core.run()
+            .map_err(|_| ConfigError::Io(std::io::ErrorKind::Other))?;
+
+        Ok(())
     }
 }

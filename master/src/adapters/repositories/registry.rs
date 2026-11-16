@@ -6,12 +6,14 @@ pub struct Registry {
     devices: DeviceRepository,
 }
 
-pub trait Repository<Entity: ?Sized> {
+pub trait Repository<Entity: Sized> {
     type Output;
 
-    fn select(&self) -> Self::Output;
+    fn select(&self) -> Result<Self::Output, String>;
 
-    fn upsert(&self, entity: &Entity);
+    fn upsert_many(&self, entities: &[Entity]) -> Result<(), String>;
+
+    fn delete_many(&self, keys: &[String]) -> Result<(), String>;
 }
 
 impl Registry {

@@ -3,9 +3,9 @@ use crate::commands::{
     PeekCommand, RebootArgs, RebootCommand, VerifyArgs, VerifyCommand, ViewArgs, ViewCommand,
     WriteArgs, WriteCommand,
 };
-
-use clap::Subcommand;
 use config::ConfigError;
+
+use clap::{Parser, Subcommand};
 
 #[derive(Subcommand)]
 pub enum Commands {
@@ -20,7 +20,6 @@ pub enum Commands {
 }
 
 impl Commands {
-
     pub fn run(self) -> Result<(), ConfigError> {
         use Commands::*;
 
@@ -34,5 +33,27 @@ impl Commands {
             Reboot(args) => RebootCommand::handle(&args),
             Attach(args) => AttachCommand::handle(&args),
         }
+    }
+}
+
+#[derive(Parser)]
+#[command(name = "configurator")]
+#[command(about = "RP235x device configuration tool")]
+#[command(
+    long_about = "Creates, verifies, views, and flashes encrypted RP235x device configurations."
+)]
+pub struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+impl Cli {
+    pub fn run(self) {
+        let error = match self.command.run() {
+            Ok(()) => return,
+            Err(error) => error,
+        };
+
+        println!("Error: {error}");
     }
 }

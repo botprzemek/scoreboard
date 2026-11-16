@@ -1,8 +1,8 @@
 use core::marker::PhantomData;
 
+use crate::client_session::{ClientSession, Connected};
 use crate::event::ClientEvent;
 use crate::layout::DATA_SIZE;
-use crate::session::{Connected, Session};
 use crate::transport::PacketSender;
 
 pub struct GameIdle;
@@ -10,13 +10,13 @@ pub struct GameRunning;
 pub struct GamePaused;
 pub struct GameEnded;
 pub struct GameSession<T, State> {
-    session: Session<T, Connected>,
-    game_id: u16,
+    session: ClientSession<T, Connected>,
+    game_id: u64,
     _state: PhantomData<State>,
 }
 
 impl<T, State> GameSession<T, State> {
-    pub(crate) fn new(session: Session<T, Connected>, game_id: u16) -> Self {
+    pub(crate) fn new(session: ClientSession<T, Connected>, game_id: u64) -> Self {
         Self {
             session,
             game_id,
@@ -25,27 +25,27 @@ impl<T, State> GameSession<T, State> {
     }
 
     #[must_use]
-    pub fn game_id(&self) -> u16 {
+    pub fn game_id(&self) -> u64 {
         self.game_id
     }
 
     #[must_use]
-    pub fn session(&self) -> &Session<T, Connected> {
+    pub fn session(&self) -> &ClientSession<T, Connected> {
         &self.session
     }
 
-    pub fn session_mut(&mut self) -> &mut Session<T, Connected> {
+    pub fn session_mut(&mut self) -> &mut ClientSession<T, Connected> {
         &mut self.session
     }
 
     #[must_use]
-    pub fn into_session(self) -> Session<T, Connected> {
+    pub fn into_session(self) -> ClientSession<T, Connected> {
         self.session
     }
 
     fn game_id_payload(&self) -> [u8; DATA_SIZE] {
         let mut data = [0u8; DATA_SIZE];
-        data[..2].copy_from_slice(&self.game_id.to_le_bytes());
+        data[..8].copy_from_slice(&self.game_id.to_le_bytes());
         data
     }
 
@@ -58,88 +58,71 @@ impl<T, State> GameSession<T, State> {
     }
 }
 
+impl<T: PacketSender, State> GameSession<T, State> {
+    async fn send_game_event(&mut self, event: ClientEvent) {
+        let payload = self.game_id_payload();
+        self.session.send_event(event, 8, payload).await;
+    }
+}
+
 impl<T: PacketSender> GameSession<T, GameIdle> {
     pub async fn start(mut self) -> GameSession<T, GameRunning> {
-        let payload = self.game_id_payload();
-        self.session.send_event(ClientEvent::GameStart, 2, payload).await;
+        self.send_game_event(ClientEvent::GameStart).await;
         self.transition()
     }
 }
 
 impl<T: PacketSender> GameSession<T, GameRunning> {
     pub async fn score_home_ft(&mut self) {
-        let payload = self.game_id_payload();
-        self.session
-            .send_event(ClientEvent::GameScoreHomeFT, 2, payload)
-            .await;
+        self.send_game_event(ClientEvent::GameScoreHomeFT).await;
     }
 
     pub async fn score_home_2fg(&mut self) {
-        let payload = self.game_id_payload();
-        self.session
-            .send_event(ClientEvent::GameScoreHome2FG, 2, payload)
-            .await;
+        self.send_game_event(ClientEvent::GameScoreHome2FG).await;
     }
 
     pub async fn score_home_3fg(&mut self) {
-        let payload = self.game_id_payload();
-        self.session
-            .send_event(ClientEvent::GameScoreHome3FG, 2, payload)
-            .await;
+        self.send_game_event(ClientEvent::GameScoreHome3FG).await;
     }
 
     pub async fn score_away_ft(&mut self) {
-        let payload = self.game_id_payload();
-        self.session
-            .send_event(ClientEvent::GameScoreAwayFT, 2, payload)
-            .await;
+        self.send_game_event(ClientEvent::GameScoreAwayFT).await;
     }
 
     pub async fn score_away_2fg(&mut self) {
-        let payload = self.game_id_payload();
-        self.session
-            .send_event(ClientEvent::GameScoreAway2FG, 2, payload)
-            .await;
+        self.send_game_event(ClientEvent::GameScoreAway2FG).await;
     }
 
     pub async fn score_away_3fg(&mut self) {
-        let payload = self.game_id_payload();
-        self.session
-            .send_event(ClientEvent::GameScoreAway3FG, 2, payload)
-            .await;
+        self.send_game_event(ClientEvent::GameScoreAway3FG).await;
     }
 
     pub async fn pause(mut self) -> GameSession<T, GamePaused> {
-        let payload = self.game_id_payload();
-        self.session.send_event(ClientEvent::GamePause, 2, payload).await;
+        self.send_game_event(ClientEvent::GamePause).await;
         self.transition()
     }
 
     pub async fn end(mut self) -> GameSession<T, GameEnded> {
-        let payload = self.game_id_payload();
-        self.session.send_event(ClientEvent::GameEnd, 2, payload).await;
+        self.send_game_event(ClientEvent::GameEnd).await;
         self.transition()
     }
 }
 
 impl<T: PacketSender> GameSession<T, GamePaused> {
     pub async fn resume(mut self) -> GameSession<T, GameRunning> {
-        let payload = self.game_id_payload();
-        self.session.send_event(ClientEvent::GameResume, 2, payload).await;
+        self.send_game_event(ClientEvent::GameResume).await;
         self.transition()
     }
 
     pub async fn end(mut self) -> GameSession<T, GameEnded> {
-        let payload = self.game_id_payload();
-        self.session.send_event(ClientEvent::GameEnd, 2, payload).await;
+        self.send_game_event(ClientEvent::GameEnd).await;
         self.transition()
     }
 }
 
 impl<T: PacketSender> GameSession<T, GameEnded> {
     pub async fn reset(mut self) -> GameSession<T, GameIdle> {
-        let payload = self.game_id_payload();
-        self.session.send_event(ClientEvent::GameReset, 2, payload).await;
+        self.send_game_event(ClientEvent::GameReset).await;
         self.transition()
     }
 }

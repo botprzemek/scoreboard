@@ -1,8 +1,7 @@
 use core::net::SocketAddr;
-use std::sync::Arc;
 
 use super::websocket::Session;
-use crate::services::Services;
+use crate::services::{DeviceService, GameService};
 
 use basketball::{Discipline, Game, Score, Team};
 use config::DeviceConfig;
@@ -10,18 +9,20 @@ use net::{
     ClientEvent, ClientPacket, Device, DeviceType, ServerEvent, ServerHandler, ServerPacket,
 };
 
-pub struct PacketHandler {
-    services: Arc<Services>,
+pub(crate) struct PacketHandler {
+    game: GameService,
+    devices: DeviceService,
     sequence_id: u16,
     validated_device: Option<Device>,
-    selected_game_id: u16,
+    selected_game_id: u64,
 }
 
 impl PacketHandler {
     #[must_use]
-    pub fn new(services: Arc<Services>) -> Self {
+    pub fn new(game: GameService, devices: DeviceService) -> Self {
         Self {
-            services,
+            game,
+            devices,
             sequence_id: 0,
             validated_device: None,
             selected_game_id: 0,
@@ -34,7 +35,7 @@ impl PacketHandler {
     }
 
     #[must_use]
-    pub fn is_web_browser(&self) -> bool {
+    pub fn can_control_game(&self) -> bool {
         matches!(
             self.validated_device,
             Some(device) if device.device_type() == DeviceType::WebBrowser
@@ -48,7 +49,7 @@ impl PacketHandler {
 
     #[must_use]
     #[allow(dead_code)]
-    pub fn selected_game_id(&self) -> u16 {
+    pub fn selected_game_id(&self) -> u64 {
         self.selected_game_id
     }
 
@@ -56,7 +57,7 @@ impl PacketHandler {
     pub fn session(&self) -> Session {
         Session {
             validated: self.is_validated(),
-            browser: self.is_web_browser(),
+            browser: self.can_control_game(),
             game_id: self.selected_game_id,
         }
     }
@@ -67,7 +68,7 @@ impl PacketHandler {
             .is_some_and(|device| device.serial_number() == Ok(serial_number))
     }
 
-    pub fn set_selected_game_id(&mut self, game_id: u16) {
+    pub fn set_selected_game_id(&mut self, game_id: u64) {
         self.selected_game_id = game_id;
         if let Some(mut device) = self.validated_device {
             device.set_game_id(game_id);
@@ -78,7 +79,7 @@ impl PacketHandler {
     pub fn sync_assignment(&mut self) {
         if let Some(device) = self.validated_device
             && let Ok(serial_number) = device.serial_number()
-            && let Some(assigned) = self.services.devices().game_id_by_serial(serial_number)
+            && let Some(assigned) = self.devices.game_id_by_serial(serial_number)
             && assigned != self.selected_game_id
         {
             self.set_selected_game_id(assigned);
@@ -92,16 +93,17 @@ impl PacketHandler {
                 return None;
             }
         }
-        self.services.game().by_id(self.selected_game_id)
+        self.game.by_id(self.selected_game_id)
     }
 
     pub fn register_device(
-        services: &Services,
+        devices: &DeviceService,
+        game: &GameService,
         mut device: Device,
-        preferred_game_id: u16,
+        preferred_game_id: u64,
     ) -> Result<Device, String> {
         let serial_number = device.serial_number().map_err(|e| e.to_string())?;
-        let existing_assigned = services.devices().game_id_by_serial(serial_number);
+        let existing_assigned = devices.game_id_by_serial(serial_number);
 
         let assigned_game_id = match device.device_type() {
             DeviceType::WebBrowser => {
@@ -110,15 +112,14 @@ impl PacketHandler {
                 } else {
                     existing_assigned
                         .filter(|&id| id != 0)
-                        .unwrap_or_else(|| services.game().default_game().id())
+                        .unwrap_or_else(|| game.default_game().id())
                 }
             }
             DeviceType::Worker | _ => existing_assigned.unwrap_or(0),
         };
 
         device.set_game_id(assigned_game_id);
-        services
-            .devices()
+        devices
             .validate_and_register(device)
             .map_err(|e| e.to_string())
     }
@@ -138,20 +139,21 @@ impl ServerHandler for PacketHandler {
             HandshakeHeartbeat if self.validated_device.is_some() => self.handle_heartbeat(),
             HandshakeRequest | HandshakeHeartbeat => self.handle_handshake(packet, address),
             event if self.validated_device.is_none() => self.handle_unvalidated(event, address),
+            event if !self.can_control_game() => self.handle_unauthorized(event, address),
             GameSelect => self.handle_game_select(packet, address),
             GameCreate => self.handle_game_create(packet, address),
             DeviceDisconnect => self.handle_device_disconnect(packet, address),
             DeviceAssignGame => self.handle_device_assign_game(packet),
-            GameStart | GameResume => self.handle_game_resume(packet).await,
-            GamePause => self.handle_game_pause(packet).await,
-            GameEnd => self.handle_game_end(packet).await,
-            GameReset => self.handle_game_reset(packet).await,
-            GameScoreHomeFT => self.add_score(packet, Team::Home, Score::FreeThrow).await,
-            GameScoreHome2FG => self.add_score(packet, Team::Home, Score::FieldGoal2).await,
-            GameScoreHome3FG => self.add_score(packet, Team::Home, Score::FieldGoal3).await,
-            GameScoreAwayFT => self.add_score(packet, Team::Away, Score::FreeThrow).await,
-            GameScoreAway2FG => self.add_score(packet, Team::Away, Score::FieldGoal2).await,
-            GameScoreAway3FG => self.add_score(packet, Team::Away, Score::FieldGoal3).await,
+            GameStart | GameResume => self.handle_game_resume(packet),
+            GamePause => self.handle_game_pause(packet),
+            GameEnd => self.handle_game_end(packet),
+            GameReset => self.handle_game_reset(packet),
+            GameScoreHomeFT => self.add_score(packet, Team::Home, Score::FreeThrow),
+            GameScoreHome2FG => self.add_score(packet, Team::Home, Score::FieldGoal2),
+            GameScoreHome3FG => self.add_score(packet, Team::Home, Score::FieldGoal3),
+            GameScoreAwayFT => self.add_score(packet, Team::Away, Score::FreeThrow),
+            GameScoreAway2FG => self.add_score(packet, Team::Away, Score::FieldGoal2),
+            GameScoreAway3FG => self.add_score(packet, Team::Away, Score::FieldGoal3),
             _ => None,
         }
     }
@@ -167,7 +169,16 @@ impl PacketHandler {
         event: ClientEvent,
         address: Option<SocketAddr>,
     ) -> Option<ServerPacket> {
-        eprintln!("WARN: [WS {address:?}] Unvalidated client attempted {event:?}");
+        tracing::warn!("[WS {address:?}] Unvalidated client attempted {event:?}");
+        None
+    }
+
+    fn handle_unauthorized(
+        &self,
+        event: ClientEvent,
+        address: Option<SocketAddr>,
+    ) -> Option<ServerPacket> {
+        tracing::warn!("[WS {address:?}] Unauthorized device attempted {event:?}");
         None
     }
 
@@ -186,24 +197,24 @@ impl PacketHandler {
         let device = match Device::try_from(packet) {
             Ok(device) => device,
             Err(error) => {
-                eprintln!("WARN: [WS {address:?}] Handshake rejected (invalid payload: {error})");
+                tracing::warn!("[WS {address:?}] Handshake rejected (invalid payload: {error})");
                 return None;
             }
         };
 
-        let registered = match Self::register_device(&self.services, device, self.selected_game_id)
-        {
-            Ok(registered) => registered,
-            Err(error) => {
-                eprintln!("WARN: [WS {address:?}] Device validation failed: {error}");
-                return None;
-            }
-        };
+        let registered =
+            match Self::register_device(&self.devices, &self.game, device, self.selected_game_id) {
+                Ok(registered) => registered,
+                Err(error) => {
+                    tracing::warn!("[WS {address:?}] Device validation failed: {error}");
+                    return None;
+                }
+            };
 
         self.selected_game_id = registered.game_id();
         if registered.device_type() == DeviceType::WebBrowser {
-            println!(
-                "INFO: [WS {address:?}] Validated client {:?} (id={}, sn={}, game_id={})",
+            tracing::info!(
+                "[WS {address:?}] Validated client {:?} (id={}, sn={}, game_id={})",
                 registered.device_type(),
                 registered.device_id().unwrap_or("unknown"),
                 registered.serial_number().unwrap_or("unknown"),
@@ -220,10 +231,10 @@ impl PacketHandler {
         address: Option<SocketAddr>,
     ) -> Option<ServerPacket> {
         let requested_game = Game::try_from(packet).ok()?;
-        let found = self.services.game().by_id(requested_game.id())?;
+        let found = self.game.by_id(requested_game.id())?;
         self.update_device_game(found.id());
-        println!(
-            "INFO: [WS {address:?}] Client switched to game id={}",
+        tracing::info!(
+            "[WS {address:?}] Client switched to game id={}",
             self.selected_game_id
         );
         Some(ServerPacket::new(
@@ -241,10 +252,16 @@ impl PacketHandler {
         let discipline = Game::try_from(packet)
             .map(|game| game.discipline())
             .unwrap_or(Discipline::Fiba5v5);
-        let created = self.services.game().create_game(discipline);
+        let created = match self.game.create_game(discipline) {
+            Ok(created) => created,
+            Err(error) => {
+                tracing::error!("[WS {address:?}] Failed to create game: {error}");
+                return None;
+            }
+        };
         self.update_device_game(created.id());
-        println!(
-            "INFO: [WS {address:?}] Client created and selected game id={}",
+        tracing::info!(
+            "[WS {address:?}] Client created and selected game id={}",
             self.selected_game_id
         );
         Some(ServerPacket::new(
@@ -254,15 +271,16 @@ impl PacketHandler {
         ))
     }
 
-    fn update_device_game(&mut self, game_id: u16) {
+    fn update_device_game(&mut self, game_id: u64) {
         self.selected_game_id = game_id;
-        let mut device = match self.validated_device {
-            Some(device) => device,
-            None => return,
+        let Some(mut device) = self.validated_device else {
+            return;
         };
         device.set_game_id(game_id);
         self.validated_device = Some(device);
-        let _ = self.services.devices().validate_and_register(device);
+        if let Err(error) = self.devices.validate_and_register(device) {
+            tracing::warn!("Failed to update device game selection (game_id={game_id}): {error}");
+        }
     }
 
     fn handle_device_disconnect(
@@ -272,12 +290,10 @@ impl PacketHandler {
     ) -> Option<ServerPacket> {
         let target_device = Device::try_from(packet).ok()?;
         let target_serial_number = target_device.serial_number().ok()?;
-        println!(
-            "INFO: [WS {address:?}] Requested disconnect for device sn={target_serial_number}"
+        tracing::info!(
+            "[WS {address:?}] Requested disconnect for device sn={target_serial_number}"
         );
-        self.services
-            .devices()
-            .disconnect_by_serial(target_serial_number);
+        self.devices.disconnect_by_serial(target_serial_number);
         None
     }
 
@@ -285,15 +301,14 @@ impl PacketHandler {
         let target_device = Device::try_from(packet).ok()?;
         let target_serial_number = target_device.serial_number().ok()?;
         let target_game_id = target_device.game_id();
-        if target_game_id == 0 || self.services.game().by_id(target_game_id).is_some() {
-            self.services
-                .devices()
+        if target_game_id == 0 || self.game.by_id(target_game_id).is_some() {
+            self.devices
                 .assign_game_by_serial(target_serial_number, target_game_id);
         }
         None
     }
 
-    fn target_game_id(&self, packet: ClientPacket) -> u16 {
+    fn target_game_id(&self, packet: ClientPacket) -> u64 {
         Game::try_from(packet)
             .map(|game| game.id())
             .ok()
@@ -301,43 +316,29 @@ impl PacketHandler {
             .unwrap_or(self.selected_game_id)
     }
 
-    async fn handle_game_resume(&self, packet: ClientPacket) -> Option<ServerPacket> {
-        self.services
-            .game()
-            .resume_for(self.target_game_id(packet))
-            .await;
+    fn handle_game_resume(&self, packet: ClientPacket) -> Option<ServerPacket> {
+        self.game.resume_for(self.target_game_id(packet));
         None
     }
 
-    async fn handle_game_pause(&self, packet: ClientPacket) -> Option<ServerPacket> {
-        self.services
-            .game()
-            .pause_for(self.target_game_id(packet))
-            .await;
+    fn handle_game_pause(&self, packet: ClientPacket) -> Option<ServerPacket> {
+        self.game.pause_for(self.target_game_id(packet));
         None
     }
 
-    async fn handle_game_end(&self, packet: ClientPacket) -> Option<ServerPacket> {
-        self.services
-            .game()
-            .end_for(self.target_game_id(packet))
-            .await;
+    fn handle_game_end(&self, packet: ClientPacket) -> Option<ServerPacket> {
+        self.game.end_for(self.target_game_id(packet));
         None
     }
 
-    async fn handle_game_reset(&self, packet: ClientPacket) -> Option<ServerPacket> {
-        self.services
-            .game()
-            .reset_for(self.target_game_id(packet))
-            .await;
+    fn handle_game_reset(&self, packet: ClientPacket) -> Option<ServerPacket> {
+        self.game.reset_for(self.target_game_id(packet));
         None
     }
 
-    async fn add_score(&self, packet: ClientPacket, team: Team, score: Score) -> Option<ServerPacket> {
-        self.services
-            .game()
-            .add_score_for(self.target_game_id(packet), team, score)
-            .await;
+    fn add_score(&self, packet: ClientPacket, team: Team, score: Score) -> Option<ServerPacket> {
+        self.game
+            .add_score_for(self.target_game_id(packet), team, score);
         None
     }
 }

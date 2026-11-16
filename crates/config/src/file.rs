@@ -15,17 +15,14 @@ use ed25519_dalek::{Signature, Signer, SigningKey, Verifier};
 
 #[cfg(feature = "serde")]
 pub trait JsonReader {
-
     fn read(path: &Path) -> Result<Config, ConfigError>;
 }
 
 pub trait BinReader {
-
     fn read(path: &Path) -> Result<Config, ConfigError>;
 }
 
 pub trait BinWriter {
-
     fn write(&self, path: &Path) -> Result<(), ConfigError>;
 }
 
@@ -85,7 +82,7 @@ impl BinReader for Config {
         let (signature_bytes, rest) = file_bytes.split_at(64);
         let (nonce_bytes, ciphertext) = rest.split_at(12);
 
-        let keys = Keys::read().expect("cryptographic environment keys must be configured");
+        let keys = Keys::read()?;
         let verifying_key = SigningKey::from_bytes(keys.ed25519.as_bytes()).verifying_key();
 
         let signature_array: &[u8; 64] = signature_bytes
@@ -133,7 +130,7 @@ impl BinWriter for Config {
         plaintext.extend_from_slice(&checksum.to_le_bytes());
         plaintext.extend_from_slice(bytes);
 
-        let keys = Keys::read().expect("cryptographic environment keys must be configured");
+        let keys = Keys::read()?;
         let cipher = Aes256Gcm::new(keys.aes.as_bytes().into());
         let nonce = Nonce::generate();
         let ciphertext = cipher

@@ -1,223 +1,304 @@
+use core::fmt::Display;
 use core::time::Duration;
-use std::future;
+use std::collections::{HashMap, HashSet};
+use std::future::{self, Future};
 use std::ops::ControlFlow;
-use std::sync::Arc;
 
 use crate::adapters::net::handler::PacketHandler;
-use crate::services::{DeviceGameAssignment, GameFrame, Observable, Services};
+use crate::services::{DeviceGameAssignment, DeviceService, GameFrame, GameService};
 
 use basketball::Game;
 use config::DeviceConfig;
+use futures::FutureExt;
 use net::layout::PACKET_SIZE;
 use net::{
-    ClientEvent, Device, NetError, PacketReceiver, PacketSender, Server, ServerEvent, ServerPacket,
-    SplitTransport,
+    ClientEvent, ClientPacket, Device, PacketReceiver, RawPacket, ServerEvent, ServerHandler,
+    ServerPacket,
 };
 use tokio::sync::{broadcast, mpsc, watch};
 use tokio::time::{self, MissedTickBehavior};
-
-const OUTBOUND_CAPACITY: usize = 256;
+use tokio_util::sync::CancellationToken;
 
 const BROWSER_SYNC_INTERVAL: Duration = Duration::from_millis(100);
-
-const PERIODIC_SYNC_INTERVAL: Duration = Duration::from_secs(5);
+const SEND_TIMEOUT: Duration = Duration::from_millis(250);
+const OUTBOUND_QUEUE_CAPACITY: usize = 4096;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub struct Session {
+pub(crate) struct Session {
     pub validated: bool,
     pub browser: bool,
-    pub game_id: u16,
+    pub game_id: u64,
 }
 
-enum Outbound {
-    Packet([u8; PACKET_SIZE]),
+pub(super) trait FalliblePacketSender: Send {
+    type Error: Display;
 
-    BrowserResync,
+    fn send_packet(
+        &mut self,
+        data: &[u8; PACKET_SIZE],
+    ) -> impl Future<Output = Result<(), Self::Error>> + Send;
 }
 
-struct QueueSender {
-    sender: mpsc::Sender<Outbound>,
-    overflowed: bool,
-}
-
-impl QueueSender {
-    fn push(&mut self, message: Outbound) {
-        if self.sender.try_send(message).is_err() {
-            self.overflowed = true;
-        }
-    }
-}
-
-impl PacketSender for QueueSender {
-    async fn send_packet(&mut self, data: &[u8; PACKET_SIZE]) {
-        self.push(Outbound::Packet(*data));
-    }
-}
-
-pub async fn run<R, W>(receiver: R, sender: W, services: Arc<Services>)
-where
-    R: PacketReceiver,
-    W: PacketSender,
-{
-    let (outbound_tx, outbound_rx) = mpsc::channel(OUTBOUND_CAPACITY);
-    let (session_tx, session_rx) = watch::channel(Session::default());
-
-    tokio::select! {
-        () = read_loop(receiver, outbound_tx, session_tx, Arc::clone(&services)) => {}
-        () = write_loop(sender, outbound_rx, session_rx, services) => {}
-    }
-}
-
-async fn read_loop<R>(
-    receiver: R,
-    outbound_tx: mpsc::Sender<Outbound>,
-    session_tx: watch::Sender<Session>,
-    services: Arc<Services>,
+pub(super) async fn run<R, W>(
+    mut receiver: R,
+    mut sender: W,
+    game: GameService,
+    devices: DeviceService,
+    shutdown: CancellationToken,
 ) where
     R: PacketReceiver,
+    W: FalliblePacketSender + 'static,
 {
-    let handler = PacketHandler::new(Arc::clone(&services));
-    let queue = QueueSender {
-        sender: outbound_tx,
-        overflowed: false,
-    };
-    let mut server = Server::new(SplitTransport::new(queue, receiver), handler);
+    let mut handler = PacketHandler::new(game.clone(), devices.clone());
+    let mut state = SyncState::new();
+    let mut disconnect_rx = Some(devices.subscribe_disconnect());
+    let mut game_assign_rx = Some(devices.subscribe_game_assign());
 
-    let mut disconnect_rx = services.devices().subscribe_disconnect();
-    let mut game_assign_rx = services.devices().subscribe_game_assign();
+    let (outbound_tx, mut outbound_rx) = mpsc::channel::<[u8; PACKET_SIZE]>(OUTBOUND_QUEUE_CAPACITY);
+    let writer_handle = tokio::spawn(async move {
+        while let Some(bytes) = outbound_rx.recv().await {
+            if send_packet(&mut sender, &bytes).await.is_break() {
+                break;
+            }
+        }
+    });
 
     loop {
-        let stopped = read_step(
-            &mut server,
+        let step = connection_step(
+            &mut receiver,
+            &outbound_tx,
+            &mut handler,
+            &mut state,
             &mut disconnect_rx,
             &mut game_assign_rx,
-            &session_tx,
-            &services,
+            &game,
+            &devices,
+            &shutdown,
         )
-        .await
-        .is_break();
+        .await;
 
-        if stopped {
+        if step.is_break() {
+            drop(outbound_tx);
+            let _ = writer_handle.await;
+            log_and_unregister_disconnected(&handler, &devices);
             return;
         }
     }
 }
 
-async fn read_step<R>(
-    server: &mut Server<SplitTransport<QueueSender, R>, PacketHandler>,
-    disconnect_rx: &mut broadcast::Receiver<String>,
-    game_assign_rx: &mut broadcast::Receiver<DeviceGameAssignment>,
-    session_tx: &watch::Sender<Session>,
-    services: &Arc<Services>,
+#[allow(clippy::too_many_arguments)]
+async fn connection_step<R>(
+    receiver: &mut R,
+    outbound_tx: &mpsc::Sender<[u8; PACKET_SIZE]>,
+    handler: &mut PacketHandler,
+    state: &mut SyncState,
+    disconnect_rx: &mut Option<broadcast::Receiver<String>>,
+    game_assign_rx: &mut Option<broadcast::Receiver<DeviceGameAssignment>>,
+    game: &GameService,
+    devices: &DeviceService,
+    shutdown: &CancellationToken,
 ) -> ControlFlow<()>
 where
     R: PacketReceiver,
 {
-    let was_validated = server.handler().is_validated();
-
     tokio::select! {
-        result = disconnect_rx.recv() => {
-            if let Ok(target_serial_number) = result
-                && server.handler().is_device(&target_serial_number)
-            {
-                println!("INFO: Closing WebSocket connection for disconnected device sn={target_serial_number}");
-                return ControlFlow::Break(());
-            }
+        () = shutdown.cancelled() => {
+            return ControlFlow::Break(());
         }
 
-        result = game_assign_rx.recv() => {
+        result = recv_broadcast(disconnect_rx) => {
             match result {
-                Ok(assignment) if server.handler().is_device(&assignment.serial_number) => {
-                    server.handler_mut().sync_assignment();
+                Ok(target_serial_number) if handler.is_device(&target_serial_number) => {
+                    tracing::info!("Closing WebSocket connection for disconnected device sn={target_serial_number}");
+                    return ControlFlow::Break(());
                 }
-                Err(broadcast::error::RecvError::Lagged(_)) => {
-                    server.handler_mut().sync_assignment();
+                Err(broadcast::error::RecvError::Lagged(skipped)) => {
+                    tracing::warn!("WebSocket disconnect_rx lagged {skipped} events");
                 }
+                Err(broadcast::error::RecvError::Closed) => *disconnect_rx = None,
                 _ => {}
             }
         }
 
-        result = server.poll() => {
+        result = recv_broadcast(game_assign_rx) => {
             match result {
-                Ok(packet) => {
-                    if server.handler().is_web_browser()
-                        && (!was_validated || packet.event() == ClientEvent::HandshakeRequest)
-                    {
-                        session_tx.send_if_modified(|session| {
-                            replace(session, server.handler().session())
-                        });
-                        server
-                            .transport_mut()
-                            .sender_mut()
-                            .push(Outbound::BrowserResync);
-                    }
+                Ok(assignment) if handler.is_device(&assignment.serial_number) => {
+                    handler.sync_assignment();
+                    sync_frame_subscription(state, handler.session(), game);
                 }
-                Err(NetError::InvalidPacket(error)) => {
-                    eprintln!("WARN: Invalid client packet: {error}");
+                Err(broadcast::error::RecvError::Lagged(_)) => {
+                    handler.sync_assignment();
+                    sync_frame_subscription(state, handler.session(), game);
                 }
-                Err(NetError::Disconnected | _) => {
-                    if let Some(device) = server.handler().validated_device() {
-                        if server.handler().is_web_browser() {
-                            println!(
-                                "INFO: Client disconnected: {:?} (id={}, sn={})",
-                                device.device_type(),
-                                device.device_id().unwrap_or("unknown"),
-                                device.serial_number().unwrap_or("unknown")
-                            );
-                        }
-                        services.devices().unregister(&device);
-                    } else {
-                        println!("INFO: Unvalidated client disconnected");
-                    }
-                    return ControlFlow::Break(());
-                }
+                Err(broadcast::error::RecvError::Closed) => *game_assign_rx = None,
+                _ => {}
             }
+        }
 
-            if server.transport().sender().overflowed {
-                eprintln!("WARN: Outbound queue overflow, dropping slow client");
-                if let Some(device) = server.handler().validated_device() {
-                    services.devices().unregister(&device);
+        inbound = receiver.receive_packet() => {
+            handle_inbound(inbound, outbound_tx, handler, state, game, devices)?;
+        }
+
+        result = recv_frame(&mut state.frame_rx) => {
+            match result {
+                Ok(frame) => {
+                    enqueue_packet(outbound_tx, *frame)?;
                 }
-                return ControlFlow::Break(());
+                Err(broadcast::error::RecvError::Lagged(skipped)) => {
+                    tracing::warn!("WebSocket lagged {skipped} game frames, sending full snapshot");
+                    if let Some(current) = game.by_id(state.session.game_id) {
+                        state.sequence_id = state.sequence_id.wrapping_add(1);
+                        let packet = ServerPacket::new(
+                            ServerEvent::GameUpdate,
+                            state.sequence_id,
+                            current.to_bytes(),
+                        );
+                        enqueue_packet(outbound_tx, packet.to_bytes())?;
+                    }
+                }
+                Err(broadcast::error::RecvError::Closed) => state.frame_rx = None,
+            }
+        }
+
+        result = changed(&mut state.game_rx) => {
+            match result {
+                Ok(()) => state.games_dirty = true,
+                Err(_) => state.game_rx = None,
+            }
+        }
+
+        result = changed(&mut state.devices_rx) => {
+            match result {
+                Ok(()) => state.devices_dirty = true,
+                Err(_) => state.devices_rx = None,
+            }
+        }
+
+        _ = state.browser_sync_interval.tick(), if state.session.browser => {
+            if state.games_dirty {
+                sync_games(state, outbound_tx, false)?;
+            }
+            if state.devices_dirty {
+                sync_devices(state, outbound_tx, false)?;
             }
         }
     }
 
-    session_tx.send_if_modified(|session| replace(session, server.handler().session()));
     ControlFlow::Continue(())
 }
 
-fn replace(current: &mut Session, next: Session) -> bool {
-    if *current == next {
-        return false;
+fn handle_inbound(
+    inbound: Result<RawPacket, &'static str>,
+    outbound_tx: &mpsc::Sender<[u8; PACKET_SIZE]>,
+    handler: &mut PacketHandler,
+    state: &mut SyncState,
+    game: &GameService,
+    devices: &DeviceService,
+) -> ControlFlow<()> {
+    let Ok(raw) = inbound else {
+        return ControlFlow::Break(());
+    };
+
+    let Ok(packet) = ClientPacket::from_bytes(raw.bytes) else {
+        tracing::warn!("Invalid client packet");
+        return ControlFlow::Continue(());
+    };
+
+    let was_validated = handler.is_validated();
+    let event = packet.event();
+    if let Some(response) = handler.handle_packet(packet, raw.address).now_or_never().flatten() {
+        enqueue_packet(outbound_tx, response.to_bytes())?;
     }
 
-    *current = next;
+    let next_session = handler.session();
+    sync_frame_subscription(state, next_session, game);
 
-    true
+    if next_session.browser && (!was_validated || event == ClientEvent::HandshakeRequest) {
+        state.game_rx.get_or_insert_with(|| game.watch());
+        state.devices_rx.get_or_insert_with(|| devices.watch());
+        sync_devices(state, outbound_tx, true)?;
+        sync_games(state, outbound_tx, true)?;
+    }
+
+    ControlFlow::Continue(())
 }
 
-struct WriteState {
+fn enqueue_packet(
+    outbound_tx: &mpsc::Sender<[u8; PACKET_SIZE]>,
+    bytes: [u8; PACKET_SIZE],
+) -> ControlFlow<()> {
+    match outbound_tx.try_send(bytes) {
+        Ok(()) => ControlFlow::Continue(()),
+        Err(mpsc::error::TrySendError::Full(_)) => {
+            tracing::warn!("WebSocket outbound queue full, dropping slow client");
+            ControlFlow::Break(())
+        }
+        Err(mpsc::error::TrySendError::Closed(_)) => ControlFlow::Break(()),
+    }
+}
+
+async fn send_packet<W: FalliblePacketSender>(
+    sender: &mut W,
+    bytes: &[u8; PACKET_SIZE],
+) -> ControlFlow<()> {
+    match time::timeout(SEND_TIMEOUT, sender.send_packet(bytes)).await {
+        Ok(Ok(())) => ControlFlow::Continue(()),
+        Ok(Err(error)) => {
+            tracing::warn!("WebSocket send failed, closing connection: {error}");
+            ControlFlow::Break(())
+        }
+        Err(_) => {
+            tracing::warn!("WebSocket send timed out, dropping slow client");
+            ControlFlow::Break(())
+        }
+    }
+}
+
+fn log_and_unregister_disconnected(handler: &PacketHandler, devices: &DeviceService) {
+    let Some(device) = handler.validated_device() else {
+        tracing::info!("Unvalidated client disconnected");
+        return;
+    };
+
+    if handler.session().browser {
+        tracing::info!(
+            "Client disconnected: {:?} (id={}, sn={})",
+            device.device_type(),
+            device.device_id().unwrap_or("unknown"),
+            device.serial_number().unwrap_or("unknown")
+        );
+    }
+    devices.unregister(&device);
+}
+
+fn sync_frame_subscription(state: &mut SyncState, next: Session, game: &GameService) {
+    let stream_game = next.validated && next.game_id != 0;
+    if !stream_game {
+        state.frame_rx = None;
+    } else if state.frame_rx.is_none() || next.game_id != state.session.game_id {
+        state.frame_rx = Some(game.subscribe_frames(next.game_id));
+    }
+
+    state.session = next;
+}
+
+struct SyncState {
     sequence_id: u16,
     session: Session,
-    frame_rx: Option<watch::Receiver<Option<GameFrame>>>,
+    frame_rx: Option<broadcast::Receiver<GameFrame>>,
     game_rx: Option<watch::Receiver<Vec<Game>>>,
     devices_rx: Option<watch::Receiver<Vec<Device>>>,
-    known_devices: Vec<Device>,
-    known_games: Vec<Game>,
+    known_devices: HashMap<String, Device>,
+    known_games: HashMap<u64, Game>,
     devices_dirty: bool,
     games_dirty: bool,
     browser_sync_interval: time::Interval,
-    periodic_sync_interval: time::Interval,
 }
 
-impl WriteState {
+impl SyncState {
     fn new() -> Self {
         let mut browser_sync_interval = time::interval(BROWSER_SYNC_INTERVAL);
         browser_sync_interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
-
-        let mut periodic_sync_interval = time::interval(PERIODIC_SYNC_INTERVAL);
-        periodic_sync_interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
         Self {
             sequence_id: 0,
@@ -225,145 +306,66 @@ impl WriteState {
             frame_rx: None,
             game_rx: None,
             devices_rx: None,
-            known_devices: Vec::new(),
-            known_games: Vec::new(),
+            known_devices: HashMap::new(),
+            known_games: HashMap::new(),
             devices_dirty: false,
             games_dirty: false,
             browser_sync_interval,
-            periodic_sync_interval,
         }
     }
 }
 
-async fn write_loop<W>(
-    mut sender: W,
-    mut outbound_rx: mpsc::Receiver<Outbound>,
-    mut session_rx: watch::Receiver<Session>,
-    services: Arc<Services>,
-) where
-    W: PacketSender,
-{
-    let mut state = WriteState::new();
+fn sync_games(
+    state: &mut SyncState,
+    outbound_tx: &mpsc::Sender<[u8; PACKET_SIZE]>,
+    full_resync: bool,
+) -> ControlFlow<()> {
+    let Some(rx) = &mut state.game_rx else {
+        return ControlFlow::Continue(());
+    };
 
-    loop {
-        if write_step(
-            &mut state,
-            &mut sender,
-            &mut outbound_rx,
-            &mut session_rx,
-            &services,
-        )
-        .await
-        .is_break()
-        {
-            return;
-        }
+    state.games_dirty = false;
+    let current_games = rx.borrow_and_update().clone();
+    if full_resync {
+        state.known_games.clear();
     }
+    sync_games_to_browser(
+        outbound_tx,
+        &mut state.known_games,
+        current_games,
+        &mut state.sequence_id,
+    )
 }
 
-async fn write_step<W>(
-    state: &mut WriteState,
-    sender: &mut W,
-    outbound_rx: &mut mpsc::Receiver<Outbound>,
-    session_rx: &mut watch::Receiver<Session>,
-    services: &Arc<Services>,
-) -> std::ops::ControlFlow<()>
-where
-    W: PacketSender,
-{
-    tokio::select! {
-        message = outbound_rx.recv() => {
-            match message {
-                Some(Outbound::Packet(bytes)) => sender.send_packet(&bytes).await,
-                Some(Outbound::BrowserResync) => {
-                    let games = state.game_rx.get_or_insert_with(|| services.game().watch());
-                    let devices = state.devices_rx.get_or_insert_with(|| services.devices().watch());
+fn sync_devices(
+    state: &mut SyncState,
+    outbound_tx: &mpsc::Sender<[u8; PACKET_SIZE]>,
+    full_resync: bool,
+) -> ControlFlow<()> {
+    let Some(rx) = &mut state.devices_rx else {
+        return ControlFlow::Continue(());
+    };
 
-                    state.known_devices.clear();
-                    let current_devices = devices.borrow_and_update().clone();
-                    sync_devices_to_browser(sender, &mut state.known_devices, current_devices, &mut state.sequence_id).await;
-
-                    state.known_games.clear();
-                    let current_games = games.borrow_and_update().clone();
-                    sync_games_to_browser(sender, &mut state.known_games, current_games, &mut state.sequence_id).await;
-
-                    state.devices_dirty = false;
-                    state.games_dirty = false;
-                }
-                None => return std::ops::ControlFlow::Break(()),
-            }
-        }
-
-        result = session_rx.changed() => {
-            if result.is_err() {
-                return std::ops::ControlFlow::Break(());
-            }
-            let next = *session_rx.borrow_and_update();
-            let stream_game = next.validated && next.game_id != 0;
-            if !stream_game {
-                state.frame_rx = None;
-            } else if state.frame_rx.is_none() || next.game_id != state.session.game_id {
-                state.frame_rx = Some(services.game().subscribe_frames(next.game_id));
-            }
-
-            state.session = next;
-        }
-
-        result = changed(&mut state.frame_rx) => {
-            match result {
-                Ok(()) => {
-                    let frame = state.frame_rx.as_mut().and_then(|rx| rx.borrow_and_update().clone());
-                    if let Some(frame) = frame {
-                        sender.send_packet(&frame).await;
-                    }
-                }
-                Err(_) => state.frame_rx = None,
-            }
-        }
-
-        result = changed(&mut state.game_rx) => {
-            if result.is_ok() {
-                state.games_dirty = true;
-            }
-        }
-
-        result = changed(&mut state.devices_rx) => {
-            if result.is_ok() {
-                state.devices_dirty = true;
-            }
-        }
-
-        _ = state.browser_sync_interval.tick(), if state.session.browser => {
-            if state.games_dirty && let Some(rx) = &mut state.game_rx {
-                state.games_dirty = false;
-                let current_games = rx.borrow_and_update().clone();
-                sync_games_to_browser(sender, &mut state.known_games, current_games, &mut state.sequence_id).await;
-            }
-
-            if state.devices_dirty && let Some(rx) = &mut state.devices_rx {
-                state.devices_dirty = false;
-                let current_devices = rx.borrow_and_update().clone();
-                sync_devices_to_browser(sender, &mut state.known_devices, current_devices, &mut state.sequence_id).await;
-            }
-        }
-
-        _ = state.periodic_sync_interval.tick(), if state.session.browser => {
-            if let Some(rx) = &mut state.game_rx {
-                let current_games = rx.borrow().clone();
-
-                state.known_games.clear();
-                sync_games_to_browser(sender, &mut state.known_games, current_games, &mut state.sequence_id).await;
-            }
-            if let Some(rx) = &mut state.devices_rx {
-                let current_devices = rx.borrow().clone();
-
-                state.known_devices.clear();
-                sync_devices_to_browser(sender, &mut state.known_devices, current_devices, &mut state.sequence_id).await;
-            }
-        }
+    state.devices_dirty = false;
+    let current_devices = rx.borrow_and_update().clone();
+    if full_resync {
+        state.known_devices.clear();
     }
+    sync_devices_to_browser(
+        outbound_tx,
+        &mut state.known_devices,
+        current_devices,
+        &mut state.sequence_id,
+    )
+}
 
-    std::ops::ControlFlow::Continue(())
+async fn recv_broadcast<T: Clone>(
+    rx: &mut Option<broadcast::Receiver<T>>,
+) -> Result<T, broadcast::error::RecvError> {
+    match rx {
+        Some(rx) => rx.recv().await,
+        None => future::pending().await,
+    }
 }
 
 async fn changed<T>(rx: &mut Option<watch::Receiver<T>>) -> Result<(), watch::error::RecvError> {
@@ -373,63 +375,71 @@ async fn changed<T>(rx: &mut Option<watch::Receiver<T>>) -> Result<(), watch::er
     }
 }
 
-async fn sync_devices_to_browser<W>(
-    sender: &mut W,
-    known_devices: &mut Vec<Device>,
-    current_devices: Vec<Device>,
-    sequence_id: &mut u16,
-) where
-    W: PacketSender,
-{
-    let disconnects = known_devices
-        .iter()
-        .filter(|previous| {
-            !current_devices
-                .iter()
-                .any(|device| device.serial_number() == previous.serial_number())
-        })
-        .map(|previous| (ServerEvent::DeviceDisconnect, previous.to_bytes()));
-
-    let updates = current_devices
-        .iter()
-        .filter(|device| !known_devices.contains(device))
-        .map(|device| (ServerEvent::DeviceUpdate, device.to_bytes()));
-
-    let packets: Vec<ServerPacket> = disconnects
-        .chain(updates)
-        .map(|(event, payload)| {
-            *sequence_id = sequence_id.wrapping_add(1);
-            ServerPacket::new(event, *sequence_id, payload)
-        })
-        .collect();
-
-    for packet in packets {
-        sender.send_packet(&packet.to_bytes()).await;
+async fn recv_frame(
+    rx: &mut Option<broadcast::Receiver<GameFrame>>,
+) -> Result<GameFrame, broadcast::error::RecvError> {
+    match rx {
+        Some(rx) => rx.recv().await,
+        None => future::pending().await,
     }
-
-    *known_devices = current_devices;
 }
 
-async fn sync_games_to_browser<W>(
-    sender: &mut W,
-    known_games: &mut Vec<Game>,
-    current_games: Vec<Game>,
+fn sync_devices_to_browser(
+    outbound_tx: &mpsc::Sender<[u8; PACKET_SIZE]>,
+    known_devices: &mut HashMap<String, Device>,
+    current_devices: Vec<Device>,
     sequence_id: &mut u16,
-) where
-    W: PacketSender,
-{
-    let packets: Vec<ServerPacket> = current_games
-        .iter()
-        .filter(|game| !known_games.contains(game))
-        .map(|game| {
-            *sequence_id = sequence_id.wrapping_add(1);
-            ServerPacket::new(ServerEvent::GameListUpdate, *sequence_id, game.to_bytes())
-        })
-        .collect();
+) -> ControlFlow<()> {
+    let mut current_map = HashMap::with_capacity(current_devices.len());
+    let mut current_serials = HashSet::with_capacity(current_devices.len());
 
-    for packet in packets {
-        sender.send_packet(&packet.to_bytes()).await;
+    for device in current_devices {
+        let Ok(serial) = device.serial_number() else {
+            continue;
+        };
+        let key = serial.to_string();
+        current_serials.insert(key.clone());
+        let changed = known_devices.get(&key) != Some(&device);
+        if changed {
+            *sequence_id = sequence_id.wrapping_add(1);
+            let packet = ServerPacket::new(ServerEvent::DeviceUpdate, *sequence_id, device.to_bytes());
+            enqueue_packet(outbound_tx, packet.to_bytes())?;
+        }
+        current_map.insert(key, device);
     }
 
-    *known_games = current_games;
+    for (serial, previous) in known_devices.iter() {
+        if !current_serials.contains(serial) {
+            *sequence_id = sequence_id.wrapping_add(1);
+            let packet =
+                ServerPacket::new(ServerEvent::DeviceDisconnect, *sequence_id, previous.to_bytes());
+            enqueue_packet(outbound_tx, packet.to_bytes())?;
+        }
+    }
+
+    *known_devices = current_map;
+    ControlFlow::Continue(())
+}
+
+fn sync_games_to_browser(
+    outbound_tx: &mpsc::Sender<[u8; PACKET_SIZE]>,
+    known_games: &mut HashMap<u64, Game>,
+    current_games: Vec<Game>,
+    sequence_id: &mut u16,
+) -> ControlFlow<()> {
+    let mut current_map = HashMap::with_capacity(current_games.len());
+
+    for game in current_games {
+        let id = game.id();
+        if known_games.get(&id) != Some(&game) {
+            *sequence_id = sequence_id.wrapping_add(1);
+            let packet =
+                ServerPacket::new(ServerEvent::GameListUpdate, *sequence_id, game.to_bytes());
+            enqueue_packet(outbound_tx, packet.to_bytes())?;
+        }
+        current_map.insert(id, game);
+    }
+
+    *known_games = current_map;
+    ControlFlow::Continue(())
 }

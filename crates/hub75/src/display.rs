@@ -34,7 +34,6 @@ impl<const WIDTH: usize, const HEIGHT: usize, const HALF_HEIGHT: usize> Default
 impl<const WIDTH: usize, const HEIGHT: usize, const HALF_HEIGHT: usize>
     DisplayBuffer<WIDTH, HEIGHT, HALF_HEIGHT>
 {
-
     #[must_use]
     pub const fn new() -> Self {
         Self {
@@ -114,55 +113,12 @@ impl<const WIDTH: usize, const HEIGHT: usize, const HALF_HEIGHT: usize>
             let bottom_row = &self.frame_buffer[row + HALF_HEIGHT];
 
             for column in 0..WIDTH {
-                let red_1_in = if brightness == 100 {
-                    top_row[column][0]
-                } else {
-                    ((u16::from(top_row[column][0]) * brightness) / 100) as u8
-                };
-                let green_1_in = if brightness == 100 {
-                    top_row[column][1]
-                } else {
-                    ((u16::from(top_row[column][1]) * brightness) / 100) as u8
-                };
-                let blue_1_in = if brightness == 100 {
-                    top_row[column][2]
-                } else {
-                    ((u16::from(top_row[column][2]) * brightness) / 100) as u8
-                };
-
-                let red_2_in = if brightness == 100 {
-                    bottom_row[column][0]
-                } else {
-                    ((u16::from(bottom_row[column][0]) * brightness) / 100) as u8
-                };
-                let green_2_in = if brightness == 100 {
-                    bottom_row[column][1]
-                } else {
-                    ((u16::from(bottom_row[column][1]) * brightness) / 100) as u8
-                };
-                let blue_2_in = if brightness == 100 {
-                    bottom_row[column][2]
-                } else {
-                    ((u16::from(bottom_row[column][2]) * brightness) / 100) as u8
-                };
-
-                let red_1 = GAMMA_TABLE[red_1_in as usize];
-                let green_1 = GAMMA_TABLE[green_1_in as usize];
-                let blue_1 = GAMMA_TABLE[blue_1_in as usize];
-
-                let red_2 = GAMMA_TABLE[red_2_in as usize];
-                let green_2 = GAMMA_TABLE[green_2_in as usize];
-                let blue_2 = GAMMA_TABLE[blue_2_in as usize];
+                let top = gamma_correct_color(top_row[column], brightness);
+                let bottom = gamma_correct_color(bottom_row[column], brightness);
 
                 for bit in 0..8 {
-                    let mask = ((red_1 >> bit) & 1)
-                        | (((green_1 >> bit) & 1) << 1)
-                        | (((blue_1 >> bit) & 1) << 2)
-                        | (((red_2 >> bit) & 1) << 3)
-                        | (((green_2 >> bit) & 1) << 4)
-                        | (((blue_2 >> bit) & 1) << 5);
-
-                    self.bitplanes.data[row][bit as usize][column] = mask;
+                    self.bitplanes.data[row][bit as usize][column] =
+                        pack_bitplane_mask(top, bottom, bit);
                 }
             }
         }
@@ -178,4 +134,33 @@ impl<const WIDTH: usize, const HEIGHT: usize, const HALF_HEIGHT: usize>
     pub fn frame_buffer(&self) -> &[[Color; WIDTH]; HEIGHT] {
         &self.frame_buffer
     }
+}
+
+#[inline(always)]
+fn scale_and_gamma(channel: u8, brightness: u16) -> u8 {
+    let scaled = if brightness == 100 {
+        channel
+    } else {
+        ((u16::from(channel) * brightness) / 100) as u8
+    };
+    GAMMA_TABLE[scaled as usize]
+}
+
+#[inline(always)]
+fn gamma_correct_color(color: Color, brightness: u16) -> Color {
+    [
+        scale_and_gamma(color[0], brightness),
+        scale_and_gamma(color[1], brightness),
+        scale_and_gamma(color[2], brightness),
+    ]
+}
+
+#[inline(always)]
+fn pack_bitplane_mask(top: Color, bottom: Color, bit: u8) -> u8 {
+    ((top[0] >> bit) & 1)
+        | (((top[1] >> bit) & 1) << 1)
+        | (((top[2] >> bit) & 1) << 2)
+        | (((bottom[0] >> bit) & 1) << 3)
+        | (((bottom[1] >> bit) & 1) << 4)
+        | (((bottom[2] >> bit) & 1) << 5)
 }

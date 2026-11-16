@@ -82,21 +82,24 @@ impl<C: RawConnection> PacketSender for Transport<C> {
     }
 }
 
+impl<C: RawConnection> Transport<C> {
+    async fn try_receive_packet(&mut self) -> Result<Option<RawPacket>, &'static str> {
+        let mut buffer = [0u8; PACKET_SIZE];
+        let size = self
+            .connection
+            .receive(&mut buffer)
+            .await
+            .map_err(|()| "disconnected")?;
+
+        Ok((size == PACKET_SIZE).then_some(RawPacket::new(buffer, self.address)))
+    }
+}
+
 impl<C: RawConnection> PacketReceiver for Transport<C> {
     async fn receive_packet(&mut self) -> Result<RawPacket, &'static str> {
-        let mut buffer = [0u8; PACKET_SIZE];
         loop {
-            let size = self
-                .connection
-                .receive(&mut buffer)
-                .await
-                .map_err(|()| "disconnected")?;
-
-            if size == PACKET_SIZE {
-                return Ok(RawPacket {
-                    bytes: buffer,
-                    address: self.address,
-                });
+            if let Some(packet) = self.try_receive_packet().await? {
+                return Ok(packet);
             }
         }
     }

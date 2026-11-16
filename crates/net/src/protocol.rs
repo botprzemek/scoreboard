@@ -2,17 +2,6 @@ use crate::data::{Device, HandshakeAck, Heartbeat, HeartbeatAck};
 use crate::layout::DATA_SIZE;
 use core::future::Future;
 
-pub trait Role: Send + Sync + 'static {}
-
-pub struct HmiRole;
-impl Role for HmiRole {}
-
-pub struct WorkerRole;
-impl Role for WorkerRole {}
-
-pub struct MasterRole;
-impl Role for MasterRole {}
-
 pub trait SendHandshake {
     type Error;
     fn send_handshake(

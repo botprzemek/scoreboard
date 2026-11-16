@@ -24,4 +24,4 @@ pub(crate) const CLOCK_MILLIS_END: usize = 0x0f;
 
 pub(crate) const ID_START: usize = 0x0f;
 
-pub(crate) const ID_END: usize = 0x11;
+pub(crate) const ID_END: usize = 0x17;

@@ -1,21 +1,27 @@
-use std::sync::Arc;
-
 use super::handler::WebsocketHandler;
-use crate::services::Services;
+use crate::services::{DeviceService, GameService};
 
 use tokio::net::TcpListener;
+use tokio::task::JoinHandle;
+use tokio_util::sync::CancellationToken;
 
 pub struct WebDriver {
     listener: TcpListener,
+    game: GameService,
+    devices: DeviceService,
     cors_origins: Vec<String>,
+    shutdown: CancellationToken,
 }
 
 impl WebDriver {
     #[must_use]
-    pub fn new(listener: TcpListener) -> Self {
+    pub fn new(listener: TcpListener, game: GameService, devices: DeviceService) -> Self {
         Self {
             listener,
+            game,
+            devices,
             cors_origins: Vec::new(),
+            shutdown: CancellationToken::new(),
         }
     }
 
@@ -25,16 +31,25 @@ impl WebDriver {
         self
     }
 
-    pub fn spawn(self, services: Arc<Services>) {
-        tokio::spawn(self.run(services));
+    #[must_use]
+    pub fn with_shutdown(mut self, shutdown: CancellationToken) -> Self {
+        self.shutdown = shutdown;
+        self
     }
 
-    async fn run(self, services: Arc<Services>) {
-        axum::serve(
+    #[must_use]
+    pub fn spawn(self) -> JoinHandle<()> {
+        tokio::spawn(self.run())
+    }
+
+    pub async fn run(self) {
+        WebsocketHandler::run(
             self.listener,
-            WebsocketHandler::router(services, &self.cors_origins),
+            self.game,
+            self.devices,
+            &self.cors_origins,
+            self.shutdown,
         )
-        .await
-        .expect("HTTP server failed");
+        .await;
     }
 }

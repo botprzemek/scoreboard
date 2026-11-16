@@ -1,7 +1,7 @@
-pub mod adapters;
-pub mod application;
+pub(crate) mod adapters;
+pub(crate) mod application;
 pub mod config;
-pub mod services;
+pub(crate) mod services;
 
-pub use application::ApplicationBuilder;
-pub use config::{Config, DatabaseBackend};
+pub use application::Application;
+pub use config::{Config, ConfigError, DatabaseBackend};

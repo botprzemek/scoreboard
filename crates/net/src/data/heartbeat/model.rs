@@ -24,7 +24,9 @@ impl Heartbeat {
     #[must_use]
     pub fn to_bytes(&self) -> [u8; DATA_SIZE] {
         let mut buffer = [0u8; DATA_SIZE];
+
         buffer[0] = self.flags;
+
         buffer
     }
 
@@ -66,14 +68,17 @@ impl HeartbeatAck {
     #[must_use]
     pub fn to_bytes(&self) -> [u8; DATA_SIZE] {
         let mut buffer = [0u8; DATA_SIZE];
+
         buffer[0..2].copy_from_slice(&self.latest_game_seq.to_be_bytes());
         buffer[2] = self.flags;
+
         buffer
     }
 
     pub fn from_bytes(buffer: &[u8; DATA_SIZE]) -> Result<Self, &'static str> {
         let seq = u16::from_be_bytes([buffer[0], buffer[1]]);
         let flags = buffer[2];
+
         Ok(Self {
             latest_game_seq: seq,
             flags,

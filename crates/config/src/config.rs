@@ -14,6 +14,8 @@ pub const CONFIG_ADDR: usize = 0x1003_f000;
 pub enum ConfigError {
     FileNotFound,
     InvalidEncoding,
+    #[cfg(feature = "std")]
+    InvalidKey,
     IntegrityCheckFailed,
     #[cfg(feature = "std")]
     Io(std::io::ErrorKind),
@@ -21,19 +23,17 @@ pub enum ConfigError {
     StringTooLong,
 }
 
-#[cfg(feature = "std")]
-#[non_exhaustive]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Input {
-    pub serial_number: std::string::String,
-    pub device_id: std::string::String,
-    pub wifi_ssid: std::string::String,
-    pub wifi_password: std::string::String,
+#[cfg(all(feature = "std", feature = "serde"))]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub(crate) struct Input {
+    pub(crate) serial_number: std::string::String,
+    pub(crate) device_id: std::string::String,
+    pub(crate) wifi_ssid: std::string::String,
+    pub(crate) wifi_password: std::string::String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ConfigField<const N: usize>([u8; N]);
+struct ConfigField<const N: usize>([u8; N]);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct SerialNumber(ConfigField<32>);
@@ -67,23 +67,13 @@ pub struct Config<State = Verified> {
     _state: PhantomData<State>,
 }
 
-#[derive(Default)]
-pub struct ConfigBuilder<'input> {
-    serial_number: Option<&'input str>,
-    device_id: Option<&'input str>,
-    wifi_ssid: Option<&'input str>,
-    wifi_password: Option<&'input str>,
-}
-
 pub trait DeviceConfig {
-
     fn serial_number(&self) -> Result<&str, ConfigError>;
 
     fn device_id(&self) -> Result<&str, ConfigError>;
 }
 
 pub trait NetworkConfig {
-
     fn wifi_ssid(&self) -> Result<&str, ConfigError>;
 
     fn wifi_password(&self) -> Result<&str, ConfigError>;
@@ -99,6 +89,8 @@ impl fmt::Display for ConfigError {
             Self::InvalidEncoding => {
                 write!(formatter, "String slice contains invalid UTF-8 sequence")
             }
+            #[cfg(feature = "std")]
+            Self::InvalidKey => write!(formatter, "Cryptographic key configuration is invalid"),
             Self::IntegrityCheckFailed => write!(formatter, "Memory checksum validation failed"),
             #[cfg(feature = "std")]
             Self::Io(error) => write!(formatter, "I/O Error: {error}"),
@@ -107,6 +99,13 @@ impl fmt::Display for ConfigError {
                 write!(formatter, "Input string exceeds maximum buffer capacity")
             }
         }
+    }
+}
+
+#[cfg(feature = "std")]
+impl From<crate::keys::KeyError> for ConfigError {
+    fn from(_: crate::keys::KeyError) -> Self {
+        Self::InvalidKey
     }
 }
 
@@ -185,9 +184,8 @@ impl<const N: usize> Default for ConfigField<N> {
 }
 
 impl<const N: usize> ConfigField<N> {
-
     #[must_use]
-    pub(crate) const fn new() -> Self {
+    const fn new() -> Self {
         Self([0; N])
     }
 
@@ -221,7 +219,6 @@ impl<const N: usize> ConfigField<N> {
 }
 
 impl<State> Config<State> {
-
     pub(crate) fn try_new(
         serial_number: &str,
         device_id: &str,
@@ -268,7 +265,6 @@ impl<State> Config<State> {
 
     #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
-
         unsafe { slice::from_raw_parts((self as *const Self).cast::<u8>(), CONFIG_SIZE) }
     }
 
@@ -323,7 +319,6 @@ impl<State> Config<State> {
 }
 
 impl Config<Raw> {
-
     pub(crate) fn from_bytes(bytes: &[u8]) -> Result<&Self, ConfigError> {
         if bytes.len() < CONFIG_SIZE {
             return Err(ConfigError::Serialization);
@@ -347,50 +342,5 @@ impl Config<Raw> {
         let verified_ref = unsafe { &*(self as *const Self).cast::<Config<Verified>>() };
 
         Ok(verified_ref)
-    }
-}
-
-impl<'input> ConfigBuilder<'input> {
-
-    #[must_use]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn serial_number(&mut self, serial_number: &'input str) -> &mut Self {
-        self.serial_number = Some(serial_number);
-        self
-    }
-
-    pub fn device_id(&mut self, device_id: &'input str) -> &mut Self {
-        self.device_id = Some(device_id);
-        self
-    }
-
-    pub fn wifi_ssid(&mut self, wifi_ssid: &'input str) -> &mut Self {
-        self.wifi_ssid = Some(wifi_ssid);
-        self
-    }
-
-    pub fn wifi_password(&mut self, wifi_password: &'input str) -> &mut Self {
-        self.wifi_password = Some(wifi_password);
-        self
-    }
-
-    pub fn reset(&mut self) -> &mut Self {
-        self.serial_number = None;
-        self.device_id = None;
-        self.wifi_ssid = None;
-        self.wifi_password = None;
-        self
-    }
-
-    pub fn build(&self) -> Result<Config<Verified>, ConfigError> {
-        Config::<Verified>::try_new(
-            self.serial_number.ok_or(ConfigError::Serialization)?,
-            self.device_id.ok_or(ConfigError::Serialization)?,
-            self.wifi_ssid.ok_or(ConfigError::Serialization)?,
-            self.wifi_password.ok_or(ConfigError::Serialization)?,
-        )
     }
 }

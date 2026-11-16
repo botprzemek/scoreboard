@@ -1,18 +1,18 @@
 #![no_std]
 
+#[macro_use]
+mod macros;
+
+pub mod client_session;
 mod data;
 pub mod event;
 pub mod game;
 pub mod layout;
 mod node;
 mod packet;
-pub mod protocol;
-pub mod server_session;
-pub mod session;
+mod protocol;
+mod server_session;
 mod transport;
-
-#[macro_use]
-pub mod macros;
 
 pub use data::{
     Device, DeviceConfig, DeviceConfig as DeviceConfigPacket, DeviceType, Handshake, HandshakeAck,
@@ -22,7 +22,7 @@ pub use event::{ClientEvent, ServerEvent};
 pub use node::{Client, ClientHandler, NetError, Node, PacketHandler, Server, ServerHandler};
 pub use packet::{ClientPacket, Packet, ServerPacket, crc16_ccitt};
 pub use protocol::{ClientReaderProtocol, ClientWriterProtocol, ServerReaderProtocol};
-pub use server_session::{ServerSession, server_state};
+pub use server_session::{Registered, ServerSession, Unregistered};
 pub use transport::{
     PacketReceiver, PacketSender, RawConnection, RawPacket, SplitTransport, Transport,
 };

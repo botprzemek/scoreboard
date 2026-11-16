@@ -27,7 +27,7 @@ impl WriteCommand {
             config.print()?;
         }
 
-        config.write();
+        config.write()?;
 
         Ok(())
     }

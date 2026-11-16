@@ -1,5 +1,4 @@
 mod attach;
-mod cli;
 mod create;
 mod flash;
 mod peek;
@@ -9,7 +8,6 @@ mod view;
 mod write;
 
 pub use attach::{AttachArgs, AttachCommand};
-pub use cli::Commands;
 pub use create::{CreateArgs, CreateCommand};
 pub use flash::{FlashArgs, FlashCommand};
 pub use peek::{PeekArgs, PeekCommand};

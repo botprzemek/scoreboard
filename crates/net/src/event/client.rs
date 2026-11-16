@@ -1,7 +1,4 @@
-use crate::define_event;
-
 define_event! {
-
     pub enum ClientEvent {
         HandshakeRequest = 0x01,
         HandshakeHeartbeat = 0x02,

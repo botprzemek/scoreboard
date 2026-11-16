@@ -5569,6 +5569,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "futures",
+ "rand 0.9.5",
  "redb",
  "rusqlite",
  "scoreboard-basketball",
@@ -5578,7 +5579,10 @@ dependencies = [
  "serde_json",
  "socket2",
  "tokio",
+ "tokio-util",
  "tower-http 0.7.1",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

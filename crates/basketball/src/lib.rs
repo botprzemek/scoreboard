@@ -17,4 +17,4 @@ pub use quarter::Quarter;
 pub use score::{Scorable, Score, ScoreRead, ScoreWrite, Scores};
 pub use state::State;
 pub use team::Team;
-pub use time::{ClockTime, RegulationTime};
+pub use time::{RegulationTime, ShotClockTime};

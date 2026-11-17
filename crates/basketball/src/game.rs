@@ -1,8 +1,8 @@
 use core::time::Duration;
 
 use crate::{
-    ClockTime, Discipline, Quarter, RegulationTime, Score, ScoreRead, ScoreWrite, Scores, State,
-    Team, layout,
+    Discipline, Quarter, RegulationTime, Score, ScoreRead, ScoreWrite, Scores, ShotClockTime,
+    State, Team, layout,
 };
 
 use net::{ClientPacket, ServerPacket};
@@ -83,7 +83,7 @@ impl Game {
 
         Self {
             id,
-            state: State::Idle,
+            state: State::Scheduled,
             discipline,
             quarter: config.initial_quarter,
             home_score: 0,
@@ -97,7 +97,7 @@ impl Game {
     pub const fn empty() -> Self {
         Self {
             id: 1,
-            state: State::Idle,
+            state: State::Scheduled,
             discipline: Discipline::Fiba5v5,
             quarter: Quarter::Q1,
             home_score: 0,
@@ -118,27 +118,12 @@ impl Game {
 
     #[must_use]
     pub fn regulation_time(&self) -> RegulationTime {
-        let total_seconds = self.regulation_millis / 1000;
-        let minutes = (total_seconds / 60) as u8;
-        let seconds = (total_seconds % 60) as u8;
-        let centiseconds = ((self.regulation_millis % 1000) / 10) as u8;
-
-        RegulationTime {
-            minutes,
-            seconds,
-            centiseconds,
-        }
+        RegulationTime::from_millis(self.regulation_millis)
     }
 
     #[must_use]
-    pub fn clock_time(&self) -> ClockTime {
-        let seconds = (self.clock_millis / 1000) as u8;
-        let centiseconds = ((self.clock_millis % 1000) / 10) as u8;
-
-        ClockTime {
-            seconds,
-            centiseconds,
-        }
+    pub fn clock_time(&self) -> ShotClockTime {
+        ShotClockTime::from_millis(self.clock_millis)
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, &'static str> {
@@ -246,11 +231,12 @@ impl Game {
 
     pub fn tick(&mut self, delta: Duration) {
         match self.state {
-            State::Idle => self.handle_idle(),
-            State::Running => self.handle_running(delta),
+            State::Scheduled => self.handle_idle(),
+            State::QuarterStart => self.handle_quarter_start(),
+            State::InProgress => self.handle_in_progress(delta),
             State::Paused => self.handle_paused(),
             State::QuarterEnd => self.handle_quarter_end(),
-            State::GameEnd => self.handle_end(),
+            State::Final => self.handle_final(),
         }
     }
 
@@ -266,7 +252,7 @@ impl Game {
             Quarter::Q2 => Quarter::Q3,
             Quarter::Q3 => Quarter::Q4,
             Quarter::Q4 | Quarter::None => {
-                self.state = State::GameEnd;
+                self.state = State::Final;
                 return;
             }
         };
@@ -278,27 +264,39 @@ impl Game {
 
     fn handle_idle(&mut self) {}
 
-    fn handle_running(&mut self, delta: Duration) {
-        let delta_millis = delta.as_millis() as u32;
+    fn handle_quarter_start(&mut self) {
+        if self.quarter() == Quarter::Q4 {
+            self.set_state(State::Final);
 
-        self.regulation_millis = self.regulation_millis.saturating_sub(delta_millis);
-
-        if self.regulation_millis == 0 {
-            self.next_quarter();
+            return;
         }
+
+        self.regulation_millis = self.discipline.config().regulation_millis;
+
+        self.set_state(State::InProgress);
+    }
+
+    fn handle_in_progress(&mut self, delta: Duration) {
+        let delta_millis = delta.as_millis() as u32;
+        self.regulation_millis = self.regulation_millis.saturating_sub(delta_millis);
+        if self.regulation_millis == 1 {
+            return;
+        }
+
+        self.set_state(State::QuarterEnd);
     }
 
     fn handle_paused(&mut self) {}
 
     fn handle_quarter_end(&mut self) {}
 
-    fn handle_end(&mut self) {}
+    fn handle_final(&mut self) {}
+
+    pub fn resume(&mut self) {
+        self.set_state(State::InProgress);
+    }
 
     pub fn pause(&mut self) {
         self.set_state(State::Paused);
-    }
-
-    pub fn resume(&mut self) {
-        self.set_state(State::Running);
     }
 }

@@ -1,4 +1,4 @@
-pub mod handler;
+mod handler;
 mod machine;
 
 pub use handler::{

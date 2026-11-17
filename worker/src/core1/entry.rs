@@ -21,9 +21,9 @@ use hub75::{CORAL_RED, DisplayBuffer, LedOutputs};
 use static_cell::StaticCell;
 
 #[cfg(not(feature = "rp235x"))]
-use crate::state::GAME_STATE;
+use crate::state::CORE1_READY_SIGNAL;
 #[cfg(not(feature = "rp235x"))]
-use crate::state::handler::CORE1_READY_SIGNAL;
+use crate::state::GAME_STATE;
 #[cfg(not(feature = "rp235x"))]
 use basketball::ScoreRead;
 

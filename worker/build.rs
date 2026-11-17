@@ -4,7 +4,6 @@ use std::io::Write;
 use std::path::PathBuf;
 
 fn main() {
-
     let out = &PathBuf::from(
         env::var_os("OUT_DIR").expect("OUT_DIR environment variable must be set by Cargo"),
     );

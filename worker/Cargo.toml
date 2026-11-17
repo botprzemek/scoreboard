@@ -12,8 +12,8 @@ bench = false
 required-features = ["rp235x"]
 
 [[bin]]
-name = "rp235x-test"
-path = "src/bin/rp235x-test.rs"
+name = "rp235x-nyan"
+path = "src/bin/rp235x-nyan.rs"
 test = false
 doctest = false
 bench = false

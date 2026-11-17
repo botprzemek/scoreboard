@@ -34,7 +34,6 @@ const NVRAM_ADDR: usize = 0x1025_0000 ^ NVRAM_MASK;
 const NVRAM_LEN: usize = 742;
 
 impl Cyw43 {
-
     pub async fn init(peripherals: NetPeripherals) -> Cyw43Driver {
         let state = WIFI_STATE.init(State::new());
 

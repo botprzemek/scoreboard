@@ -16,4 +16,3 @@ serde = [
     "dep:serde",
     "serde/derive",
 ]
-std = []

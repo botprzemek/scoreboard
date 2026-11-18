@@ -5,18 +5,17 @@ edition.workspace = true
 
 [dependencies]
 cortex-m = { workspace = true, optional = true }
-cortex-m-rt = { workspace = true, optional = true }
-defmt = { workspace = true, optional = true }
-defmt-rtt = { workspace = true, optional = true }
 embassy-rp = { version = "0.10.0", features = [], optional = true }
+esp-hal = { version = "1.0", features = [], optional = true }
 
 [features]
 default = []
+esp32s3 = [
+    "dep:esp-hal",
+    "esp-hal/esp32s3"
+]
 rp235x = [
     "dep:cortex-m",
-    "dep:cortex-m-rt",
-    "dep:defmt",
-    "dep:defmt-rtt",
     "dep:embassy-rp",
     "embassy-rp/rp235xa",
 ]

@@ -108,6 +108,7 @@ impl<const WIDTH: usize, const HEIGHT: usize, const HALF_HEIGHT: usize>
 
     pub fn prepare_bitplanes(&mut self) {
         let brightness = u16::from(self.brightness_percent);
+
         for row in 0..HALF_HEIGHT {
             let top_row = &self.frame_buffer[row];
             let bottom_row = &self.frame_buffer[row + HALF_HEIGHT];

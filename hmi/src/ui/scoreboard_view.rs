@@ -28,11 +28,12 @@ fn format_quarter(quarter: Quarter) -> &'static str {
 
 fn format_state(state: State) -> (&'static str, BadgeVariant) {
     match state {
-        State::Idle => ("Gotowy", BadgeVariant::Secondary),
-        State::Running => ("W trakcie", BadgeVariant::Success),
+        State::Scheduled => ("Zaplanowany", BadgeVariant::Secondary),
+        State::QuarterStart => ("Start kwarty", BadgeVariant::Secondary),
+        State::InProgress => ("W trakcie", BadgeVariant::Success),
         State::Paused => ("Pauza", BadgeVariant::Warning),
         State::QuarterEnd => ("Koniec kwarty", BadgeVariant::Default),
-        State::GameEnd => ("Koniec meczu", BadgeVariant::Destructive),
+        State::Final => ("Koniec meczu", BadgeVariant::Destructive),
         _ => ("Nieznany", BadgeVariant::Secondary),
     }
 }

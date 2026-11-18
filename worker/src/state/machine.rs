@@ -1,8 +1,8 @@
 use basketball::Game;
 
-#[cfg(feature = "rp235x")]
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
 use core::cell::RefCell;
-#[cfg(feature = "rp235x")]
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
 use critical_section::Mutex as CsMutex;
 #[cfg(feature = "rp235x")]
 use defmt::Format;
@@ -15,15 +15,15 @@ use core::sync::atomic::AtomicBool;
 
 pub static IS_CONNECTED_TO_MASTER: AtomicBool = AtomicBool::new(false);
 
-#[cfg(not(feature = "rp235x"))]
+#[cfg(feature = "linux")]
 use std::sync::RwLock;
 
-#[cfg(feature = "rp235x")]
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
 pub struct SharedGameState {
     state: CsMutex<RefCell<Game>>,
 }
 
-#[cfg(feature = "rp235x")]
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
 impl SharedGameState {
 
     pub const fn new() -> Self {
@@ -53,15 +53,15 @@ impl SharedGameState {
     }
 }
 
-#[cfg(feature = "rp235x")]
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
 unsafe impl Sync for SharedGameState {}
 
-#[cfg(not(feature = "rp235x"))]
+#[cfg(feature = "linux")]
 pub struct SharedGameState {
     state: RwLock<Game>,
 }
 
-#[cfg(not(feature = "rp235x"))]
+#[cfg(feature = "linux")]
 impl SharedGameState {
 
     pub const fn new() -> Self {
@@ -87,6 +87,7 @@ impl SharedGameState {
     }
 }
 
+#[cfg(any(feature = "rp235x", feature = "linux"))]
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "rp235x", derive(Format))]
@@ -103,6 +104,7 @@ pub enum Input {
     RecoverySuccess = 0x80,
 }
 
+#[cfg(any(feature = "rp235x", feature = "linux"))]
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "rp235x", derive(Format))]
@@ -115,6 +117,7 @@ pub enum State {
     ErrorRecovery = 0x05,
 }
 
+#[cfg(any(feature = "rp235x", feature = "linux"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "rp235x", derive(Format))]
 pub struct Machine {
@@ -124,13 +127,13 @@ pub struct Machine {
 #[cfg(feature = "rp235x")]
 pub static STATE_SIGNAL: Signal<CriticalSectionRawMutex, State> = Signal::new();
 
-#[cfg(not(feature = "rp235x"))]
+#[cfg(feature = "linux")]
 pub struct LinuxSignal<T> {
     state: std::sync::Mutex<Option<T>>,
     cvar: std::sync::Condvar,
 }
 
-#[cfg(not(feature = "rp235x"))]
+#[cfg(feature = "linux")]
 impl<T: Copy> LinuxSignal<T> {
     pub const fn new() -> Self {
         Self {
@@ -155,11 +158,12 @@ impl<T: Copy> LinuxSignal<T> {
     }
 }
 
-#[cfg(not(feature = "rp235x"))]
+#[cfg(feature = "linux")]
 pub static STATE_SIGNAL: LinuxSignal<State> = LinuxSignal::new();
 
 pub static GAME_STATE: SharedGameState = SharedGameState::new();
 
+#[cfg(any(feature = "rp235x", feature = "linux"))]
 impl Machine {
 
     #[must_use]
@@ -185,7 +189,7 @@ impl Machine {
     fn process(&mut self, input: Input) {
         #[cfg(feature = "rp235x")]
         defmt::debug!("Input::{}", &input);
-        #[cfg(not(feature = "rp235x"))]
+        #[cfg(feature = "linux")]
         println!("[STATE MACHINE] Input::{:?}", input);
 
         self.state = match (self.state, input) {

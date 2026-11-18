@@ -78,7 +78,7 @@ pub(super) fn spawn_game_actor(
         let mut last_published = initial;
 
         loop {
-            let is_running = active.game.state() == State::Running;
+            let is_in_progress = active.game.state() == State::InProgress;
 
             tokio::select! {
                 () = shutdown.cancelled() => {
@@ -95,7 +95,7 @@ pub(super) fn spawn_game_actor(
                     return;
                 }
 
-                _ = interval.tick(), if is_running => {
+                _ = interval.tick(), if is_in_progress => {
                     let now = Instant::now();
                     let outcome = active.advance_clock(now);
                     if outcome.ticked {
@@ -132,8 +132,8 @@ pub(super) fn spawn_game_actor(
 
                     apply_command(&mut active.game, cmd);
 
-                    if active.game.state() == State::Running {
-                        if previous_state != State::Running
+                    if active.game.state() == State::InProgress {
+                        if previous_state != State::InProgress
                             || previous_regulation != active.game.regulation_millis()
                             || active.last_tick.is_none()
                         {
@@ -175,7 +175,7 @@ fn apply_command(game: &mut Game, cmd: GameCommand) {
         GameCommand::AddScore(team, score) => game.add_score(team, score),
         GameCommand::Resume => game.resume(),
         GameCommand::Pause => game.pause(),
-        GameCommand::End => game.set_state(State::GameEnd),
+        GameCommand::End => game.set_state(State::Final),
         GameCommand::Reset => *game = Game::new_with_id(game.id(), game.discipline()),
     }
 }
@@ -250,7 +250,8 @@ async fn flush_dirty_games(
     }
 
     let repo = repository_writer.clone();
-    if crate::services::retry_blocking("Game DB flush", move || repo.upsert_many(&dirty_games)).await
+    if crate::services::retry_blocking("Game DB flush", move || repo.upsert_many(&dirty_games))
+        .await
     {
         return;
     }

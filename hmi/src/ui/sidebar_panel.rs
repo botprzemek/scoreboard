@@ -10,21 +10,22 @@ use net::DeviceType;
 
 fn state_badge_variant(state: State) -> BadgeVariant {
     match state {
-        State::Running => BadgeVariant::Success,
+        State::InProgress => BadgeVariant::Success,
         State::Paused => BadgeVariant::Warning,
         State::QuarterEnd => BadgeVariant::Default,
-        State::GameEnd => BadgeVariant::Destructive,
-        State::Idle | _ => BadgeVariant::Secondary,
+        State::Final => BadgeVariant::Destructive,
+        State::Scheduled | State::QuarterStart | _ => BadgeVariant::Secondary,
     }
 }
 
 fn state_label(state: State) -> &'static str {
     match state {
-        State::Idle => "Idle",
-        State::Running => "Live",
+        State::Scheduled => "Idle",
+        State::QuarterStart => "Start Q",
+        State::InProgress => "Live",
         State::Paused => "Pauza",
         State::QuarterEnd => "Koniec Q",
-        State::GameEnd => "Koniec",
+        State::Final => "Koniec",
         _ => "Nieznany",
     }
 }
@@ -46,6 +47,15 @@ pub fn SidebarPanel(
     let master_3v3 = master;
     let master_games = master;
     let master_devices = master;
+
+    let show_ota = RwSignal::new(false);
+    let ota_ip = RwSignal::new("192.168.4.1".to_string());
+    let ota_sn = RwSignal::new(String::new());
+    let ota_id = RwSignal::new(String::new());
+    let ota_ssid = RwSignal::new(String::new());
+    let ota_pass = RwSignal::new(String::new());
+    let ota_busy = RwSignal::new(false);
+    let ota_status = RwSignal::new(Option::<Result<String, String>>::None);
 
     view! {
         <aside class="flex h-full w-full flex-col bg-card/75 backdrop-blur-xl border-r border-border">
@@ -175,10 +185,98 @@ pub fn SidebarPanel(
                     <Cpu class="h-3.5 w-3.5" />
                     <span>"Urządzenia"</span>
                 </div>
-                <Badge variant=BadgeVariant::Secondary class="px-1.5 py-0 text-[10px]">
-                    {move || master_devices.connected_devices.get().len()}
-                </Badge>
+                <div class="flex items-center gap-1.5">
+                    <button
+                        type="button"
+                        class="rounded px-1.5 py-0.5 text-[10px] font-semibold border border-border bg-secondary/50 hover:bg-secondary text-foreground transition-colors cursor-pointer"
+                        on:click=move |_| show_ota.update(|v| *v = !*v)
+                    >
+                        "OTA"
+                    </button>
+                    <Badge variant=BadgeVariant::Secondary class="px-1.5 py-0 text-[10px]">
+                        {move || master_devices.connected_devices.get().len()}
+                    </Badge>
+                </div>
             </div>
+
+            <Show when=move || show_ota.get()>
+                <div class="mx-2.5 mb-2.5 rounded-lg border border-border bg-card/80 p-2.5 space-y-2">
+                    <div class="text-[11px] font-semibold text-foreground">"Konfiguracja OTA workera"</div>
+                    <div class="grid grid-cols-2 gap-1.5">
+                        <input
+                            type="text"
+                            placeholder="IP (np. 192.168.4.1)"
+                            class="col-span-2 rounded border border-border bg-background px-2 py-1 text-[11px] text-foreground"
+                            prop:value=move || ota_ip.get()
+                            on:input=move |ev| ota_ip.set(event_target_value(&ev))
+                        />
+                        <input
+                            type="text"
+                            placeholder="SN (np. 0000-0001)"
+                            class="rounded border border-border bg-background px-2 py-1 text-[11px] text-foreground"
+                            prop:value=move || ota_sn.get()
+                            on:input=move |ev| ota_sn.set(event_target_value(&ev))
+                        />
+                        <input
+                            type="text"
+                            placeholder="ID (np. worker-1)"
+                            class="rounded border border-border bg-background px-2 py-1 text-[11px] text-foreground"
+                            prop:value=move || ota_id.get()
+                            on:input=move |ev| ota_id.set(event_target_value(&ev))
+                        />
+                        <input
+                            type="text"
+                            placeholder="Wi-Fi SSID"
+                            class="rounded border border-border bg-background px-2 py-1 text-[11px] text-foreground"
+                            prop:value=move || ota_ssid.get()
+                            on:input=move |ev| ota_ssid.set(event_target_value(&ev))
+                        />
+                        <input
+                            type="password"
+                            placeholder="Hasło Wi-Fi"
+                            class="rounded border border-border bg-background px-2 py-1 text-[11px] text-foreground"
+                            prop:value=move || ota_pass.get()
+                            on:input=move |ev| ota_pass.set(event_target_value(&ev))
+                        />
+                    </div>
+                    <button
+                        type="button"
+                        disabled=move || ota_busy.get()
+                        class="w-full rounded bg-primary px-2.5 py-1 text-[11px] font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50 cursor-pointer"
+                        on:click=move |_| {
+                            if ota_busy.get_untracked() {
+                                return;
+                            }
+                            ota_busy.set(true);
+                            ota_status.set(None);
+                            let ip = ota_ip.get_untracked();
+                            let sn = ota_sn.get_untracked();
+                            let id = ota_id.get_untracked();
+                            let ssid = ota_ssid.get_untracked();
+                            let pass = ota_pass.get_untracked();
+                            leptos::task::spawn_local(async move {
+                                let res = crate::adapters::tauri::invoke_send_device_config(
+                                    ip, sn, id, ssid, pass,
+                                )
+                                .await;
+                                ota_status.set(Some(res));
+                                ota_busy.set(false);
+                            });
+                        }
+                    >
+                        {move || if ota_busy.get() { "Wysyłanie..." } else { "Wyślij konfigurację" }}
+                    </button>
+                    {move || match ota_status.get() {
+                        Some(Ok(msg)) => view! {
+                            <div class="text-[10px] text-emerald-500">{msg}</div>
+                        }.into_any(),
+                        Some(Err(err)) => view! {
+                            <div class="text-[10px] text-destructive">{err}</div>
+                        }.into_any(),
+                        None => view! { <span /> }.into_any(),
+                    }}
+                </div>
+            </Show>
 
             <div class="max-h-56 overflow-y-auto px-2.5 pb-3 space-y-1">
                 {move || {
@@ -219,7 +317,16 @@ pub fn SidebarPanel(
                                         <div class="min-w-0 flex-1">
                                             <div class="flex items-center gap-1.5">
                                                 {if is_worker {
-                                                    view! { <Cpu class="h-3.5 w-3.5 text-primary shrink-0" /> }.into_any()
+                                                    let show_ota = RwSignal::new(false);
+    let ota_ip = RwSignal::new("192.168.4.1".to_string());
+    let ota_sn = RwSignal::new(String::new());
+    let ota_id = RwSignal::new(String::new());
+    let ota_ssid = RwSignal::new(String::new());
+    let ota_pass = RwSignal::new(String::new());
+    let ota_busy = RwSignal::new(false);
+    let ota_status = RwSignal::new(Option::<Result<String, String>>::None);
+
+    view! { <Cpu class="h-3.5 w-3.5 text-primary shrink-0" /> }.into_any()
                                                 } else {
                                                     view! { <Monitor class="h-3.5 w-3.5 text-muted-foreground shrink-0" /> }.into_any()
                                                 }}
@@ -259,7 +366,16 @@ pub fn SidebarPanel(
                                                 .iter()
                                                 .map(|g| {
                                                     let gid = g.id();
-                                                    view! {
+                                                    let show_ota = RwSignal::new(false);
+    let ota_ip = RwSignal::new("192.168.4.1".to_string());
+    let ota_sn = RwSignal::new(String::new());
+    let ota_id = RwSignal::new(String::new());
+    let ota_ssid = RwSignal::new(String::new());
+    let ota_pass = RwSignal::new(String::new());
+    let ota_busy = RwSignal::new(false);
+    let ota_status = RwSignal::new(Option::<Result<String, String>>::None);
+
+    view! {
                                                         <option value=gid.to_string() selected=dev_gid == gid>
                                                             {format!("Gra #{gid} ({})", discipline_label(g.discipline()))}
                                                         </option>

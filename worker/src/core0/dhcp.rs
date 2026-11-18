@@ -9,13 +9,15 @@ pub async fn run_dhcp_server(stack: Stack<'static>) -> ! {
 
     let mut socket = UdpSocket::new(stack, &mut rx_meta, &mut rx_buf, &mut tx_meta, &mut tx_buf);
 
-    if let Err(e) = socket.bind(67) {
-        defmt::error!("Failed to bind DHCP socket on port 67: {:?}", e);
+    if let Err(_e) = socket.bind(67) {
+        #[cfg(feature = "rp235x")]
+        defmt::error!("Failed to bind DHCP socket on port 67: {:?}", _e);
         loop {
             embassy_time::Timer::after_secs(60).await;
         }
     }
 
+    #[cfg(feature = "rp235x")]
     defmt::info!("DHCP server listening on 0.0.0.0:67");
 
     let server_ip = [192, 168, 4, 1];
@@ -27,8 +29,9 @@ pub async fn run_dhcp_server(stack: Stack<'static>) -> ! {
     loop {
         let (n, _remote_endpoint) = match socket.recv_from(&mut packet_buf).await {
             Ok(res) => res,
-            Err(e) => {
-                defmt::warn!("DHCP recv error: {:?}", e);
+            Err(_e) => {
+                #[cfg(feature = "rp235x")]
+                defmt::warn!("DHCP recv error: {:?}", _e);
                 continue;
             }
         };
@@ -78,6 +81,7 @@ pub async fn run_dhcp_server(stack: Stack<'static>) -> ! {
             _ => continue,
         };
 
+        #[cfg(feature = "rp235x")]
         defmt::info!(
             "DHCP incoming type {}, replying with {}",
             msg_type,
@@ -157,8 +161,9 @@ pub async fn run_dhcp_server(stack: Stack<'static>) -> ! {
             port: 68,
         };
 
-        if let Err(e) = socket.send_to(&resp[..opt_idx], broadcast_endpoint).await {
-            defmt::warn!("DHCP send error: {:?}", e);
+        if let Err(_e) = socket.send_to(&resp[..opt_idx], broadcast_endpoint).await {
+            #[cfg(feature = "rp235x")]
+            defmt::warn!("DHCP send error: {:?}", _e);
         }
     }
 }

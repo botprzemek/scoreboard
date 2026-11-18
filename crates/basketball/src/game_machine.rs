@@ -5,19 +5,19 @@ use crate::{Discipline, Game, Quarter, Score, ScoreRead, ScoreWrite, Scores, Sta
 
 pub mod state_machine {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct Idle;
+    pub struct Scheduled;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct Running;
+    pub struct InProgress;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct Paused;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct QuarterBreak;
+    pub struct QuarterEnd;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct Finished;
+    pub struct Final;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,13 +26,13 @@ pub struct GameMachine<S> {
     _marker: PhantomData<S>,
 }
 
-impl Default for GameMachine<state_machine::Idle> {
+impl Default for GameMachine<state_machine::Scheduled> {
     fn default() -> Self {
         Self::new(Discipline::Fiba5v5)
     }
 }
 
-impl GameMachine<state_machine::Idle> {
+impl GameMachine<state_machine::Scheduled> {
     #[must_use]
     pub fn new(discipline: Discipline) -> Self {
         Self {
@@ -42,8 +42,8 @@ impl GameMachine<state_machine::Idle> {
     }
 
     #[must_use]
-    pub fn start(mut self) -> GameMachine<state_machine::Running> {
-        self.game.set_state(State::Running);
+    pub fn start(mut self) -> GameMachine<state_machine::InProgress> {
+        self.game.set_state(State::InProgress);
         GameMachine {
             game: self.game,
             _marker: PhantomData,
@@ -51,7 +51,7 @@ impl GameMachine<state_machine::Idle> {
     }
 }
 
-impl GameMachine<state_machine::Running> {
+impl GameMachine<state_machine::InProgress> {
     #[must_use]
     pub fn pause(mut self) -> GameMachine<state_machine::Paused> {
         self.game.set_state(State::Paused);
@@ -64,7 +64,8 @@ impl GameMachine<state_machine::Running> {
     pub fn tick(
         mut self,
         delta: Duration,
-    ) -> Result<GameMachine<state_machine::Running>, GameMachine<state_machine::QuarterBreak>> {
+    ) -> Result<GameMachine<state_machine::InProgress>, GameMachine<state_machine::QuarterEnd>>
+    {
         let delta_ms = delta.as_millis() as u32;
         let current_rem = self.game.regulation_millis();
 
@@ -84,8 +85,9 @@ impl GameMachine<state_machine::Running> {
 
 impl GameMachine<state_machine::Paused> {
     #[must_use]
-    pub fn resume(mut self) -> GameMachine<state_machine::Running> {
-        self.game.set_state(State::Running);
+    pub fn resume(mut self) -> GameMachine<state_machine::InProgress> {
+        self.game.set_state(State::InProgress);
+
         GameMachine {
             game: self.game,
             _marker: PhantomData,
@@ -93,12 +95,12 @@ impl GameMachine<state_machine::Paused> {
     }
 }
 
-impl GameMachine<state_machine::QuarterBreak> {
+impl GameMachine<state_machine::QuarterEnd> {
     pub fn advance_quarter(
         mut self,
-    ) -> Result<GameMachine<state_machine::Paused>, GameMachine<state_machine::Finished>> {
+    ) -> Result<GameMachine<state_machine::Paused>, GameMachine<state_machine::Final>> {
         self.game.next_quarter();
-        if self.game.state() == State::GameEnd || self.game.quarter() == Quarter::None {
+        if self.game.state() == State::Final || self.game.quarter() == Quarter::None {
             Err(GameMachine {
                 game: self.game,
                 _marker: PhantomData,
@@ -113,10 +115,10 @@ impl GameMachine<state_machine::QuarterBreak> {
 }
 
 pub trait CanModifyScore {}
-impl CanModifyScore for state_machine::Idle {}
-impl CanModifyScore for state_machine::Running {}
+impl CanModifyScore for state_machine::Scheduled {}
+impl CanModifyScore for state_machine::InProgress {}
 impl CanModifyScore for state_machine::Paused {}
-impl CanModifyScore for state_machine::QuarterBreak {}
+impl CanModifyScore for state_machine::QuarterEnd {}
 
 impl<S> ScoreRead for GameMachine<S> {
     fn score(&self, team: Team) -> u16 {

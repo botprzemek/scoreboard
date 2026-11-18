@@ -279,7 +279,7 @@ impl Game {
     fn handle_in_progress(&mut self, delta: Duration) {
         let delta_millis = delta.as_millis() as u32;
         self.regulation_millis = self.regulation_millis.saturating_sub(delta_millis);
-        if self.regulation_millis == 1 {
+        if self.regulation_millis > 0 {
             return;
         }
 

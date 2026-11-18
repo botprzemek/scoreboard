@@ -1,5 +1,5 @@
-/// A regulation time is a playing timer  used in the basketball
-/// indicating a set amount of time that a quarter must consist.
+/// A regulation time is a playing timer indicating a set amount
+/// of time that a quarter must consist.
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RegulationTime {
@@ -8,9 +8,9 @@ pub struct RegulationTime {
     pub centiseconds: u8,
 }
 
-/// A shot clock is a countdown timer used in the basketball
-/// indicating a set amount of time that a team may possess
-/// the ball before attempting to score a goal.
+/// A shot clock is a countdown timer indicating a set amount
+/// of time that a team may possess the ball before attempting
+/// to score a goal.
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ShotClockTime {
@@ -19,6 +19,10 @@ pub struct ShotClockTime {
 }
 
 impl RegulationTime {
+    /// Creates a `RegulationTime` from a duration in milliseconds.
+    ///
+    /// Sub-centisecond precision is truncated. If the total seconds exceed
+    /// `u8::MAX`, `seconds` saturates at `u8::MAX`.
     #[must_use]
     pub const fn from_millis(millis: u32) -> Self {
         let total_seconds = millis / 1000;
@@ -39,6 +43,10 @@ impl RegulationTime {
 }
 
 impl ShotClockTime {
+    /// Creates a `ShotClockTime` from a duration in milliseconds.
+    ///
+    /// Sub-centisecond precision is truncated. If the total seconds exceed
+    /// `u8::MAX`, `seconds` saturates at `u8::MAX`.
     #[must_use]
     pub const fn from_millis(millis: u32) -> Self {
         let total_seconds = millis / 1000;

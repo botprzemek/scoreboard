@@ -167,6 +167,37 @@ impl GameService {
         Ok(created)
     }
 
+    pub fn delete_game(&self, game_id: u64) -> Result<Game, &'static str> {
+        {
+            let mut actors = self
+                .actors
+                .write()
+                .expect("game actors lock should not be poisoned");
+            if actors.len() <= 1 {
+                return Err("Cannot delete the last remaining game");
+            }
+            if actors.remove(&game_id).is_none() {
+                return Err("Game not found");
+            }
+        }
+
+        self.dirty_ids
+            .lock()
+            .expect("dirty game IDs lock should not be poisoned")
+            .remove(&game_id);
+
+        self.state.send_modify(|games| {
+            games.retain(|g| g.id() != game_id);
+        });
+
+        Ok(self
+            .state
+            .borrow()
+            .first()
+            .copied()
+            .unwrap_or_else(|| Game::new_with_id(1, Discipline::Fiba5v5)))
+    }
+
     fn next_game_id(actors: &HashMap<u64, GameHandle>) -> Result<u64, &'static str> {
         actors
             .keys()

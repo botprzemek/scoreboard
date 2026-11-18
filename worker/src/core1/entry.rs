@@ -1,35 +1,35 @@
-#[cfg(feature = "rp235x")]
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
 use crate::core1::ScoreboardLayout;
 #[cfg(feature = "rp235x")]
 use crate::peripherals::LedPeripherals;
 #[cfg(feature = "rp235x")]
-use crate::state::handler::CORE1_READY_SIGNAL;
-#[cfg(feature = "rp235x")]
+use crate::state::CORE1_READY_SIGNAL;
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
 use crate::state::{GAME_STATE, IS_CONNECTED_TO_MASTER};
 
-#[cfg(feature = "rp235x")]
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
 use basketball::{Quarter, ScoreRead, Team};
-#[cfg(feature = "rp235x")]
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
 use core::sync::atomic::Ordering;
 #[cfg(feature = "rp235x")]
 use embassy_executor::{Executor, Spawner};
 #[cfg(feature = "rp235x")]
 use embassy_futures::yield_now;
-#[cfg(feature = "rp235x")]
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
 use hub75::{CORAL_RED, DisplayBuffer, LedOutputs};
-#[cfg(feature = "rp235x")]
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
 use static_cell::StaticCell;
 
-#[cfg(not(feature = "rp235x"))]
+#[cfg(feature = "linux")]
 use crate::state::CORE1_READY_SIGNAL;
-#[cfg(not(feature = "rp235x"))]
+#[cfg(feature = "linux")]
 use crate::state::GAME_STATE;
-#[cfg(not(feature = "rp235x"))]
+#[cfg(feature = "linux")]
 use basketball::ScoreRead;
 
 #[cfg(feature = "rp235x")]
 pub static EXECUTOR: StaticCell<Executor> = StaticCell::new();
-#[cfg(feature = "rp235x")]
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
 static DISPLAY: StaticCell<DisplayBuffer<64, 32, 16>> = StaticCell::new();
 
 pub struct Core1;
@@ -47,7 +47,7 @@ impl Core1 {
     }
 }
 
-#[cfg(feature = "rp235x")]
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
 #[derive(PartialEq, Eq)]
 struct RenderKey {
     home_score: u16,
@@ -121,8 +121,8 @@ async fn task(_spawner: Spawner, peripherals: LedPeripherals) {
             last_idle_color = None;
 
             let mut game = GAME_STATE.get();
-            if game.state() == basketball::State::Running {
-                game.tick(core::time::Duration::from_micros(delta_micros));
+            if game.state() == basketball::State::InProgress {
+                let _ = game.tick(core::time::Duration::from_micros(delta_micros));
             }
 
             let reg = game.regulation_time();
@@ -153,7 +153,53 @@ async fn task(_spawner: Spawner, peripherals: LedPeripherals) {
     }
 }
 
-#[cfg(not(feature = "rp235x"))]
+#[cfg(feature = "esp32s3")]
+impl Core1 {
+    pub fn entry(led: hub75::LedPeripherals) -> ! {
+        let mut outputs = LedOutputs::from_peripherals(led);
+        let display = DISPLAY.init_with(DisplayBuffer::new);
+        let mut layout = ScoreboardLayout::new();
+        let mut last_render = esp_hal::time::Instant::now();
+        let mut last_render_key: Option<RenderKey> = None;
+
+        loop {
+            let now = esp_hal::time::Instant::now();
+            let delta_micros = (now - last_render).as_micros();
+            last_render = now;
+
+            let is_connected = IS_CONNECTED_TO_MASTER.load(Ordering::Acquire);
+            let mut game = GAME_STATE.get();
+            if game.state() == basketball::State::InProgress {
+                let _ = game.tick(core::time::Duration::from_micros(delta_micros));
+            }
+
+            let reg = game.regulation_time();
+            let key = RenderKey {
+                home_score: game.score(Team::Home),
+                away_score: game.score(Team::Away),
+                quarter: game.quarter(),
+                minutes: reg.minutes,
+                seconds: reg.seconds,
+                centiseconds: if reg.minutes == 0 {
+                    reg.centiseconds
+                } else {
+                    0
+                },
+                is_connected,
+            };
+
+            if last_render_key.as_ref() != Some(&key) {
+                last_render_key = Some(key);
+                display.set_brightness(100);
+                layout.render(display, &game, CORAL_RED, is_connected);
+            }
+
+            outputs.render_bcm_frame_esp32s3_fast(display.bitplanes(), 25);
+        }
+    }
+}
+
+#[cfg(feature = "linux")]
 impl Core1 {
     pub fn entry() {
         println!("🚀 [Core 1 Thread] Text Scoreboard Runner started");
@@ -196,7 +242,7 @@ impl Core1 {
     }
 }
 
-#[cfg(not(feature = "rp235x"))]
+#[cfg(feature = "linux")]
 fn print_terminal_scoreboard(game: &basketball::Game, is_connected: bool) {
     use std::fmt::Write as _;
     use std::io::Write as _;

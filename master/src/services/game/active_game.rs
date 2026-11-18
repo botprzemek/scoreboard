@@ -16,7 +16,7 @@ pub(super) struct ActiveGame {
 
 impl ActiveGame {
     pub(super) fn new(game: Game, now: Instant) -> Self {
-        let last_tick = if game.state() == State::Running {
+        let last_tick = if game.state() == State::InProgress {
             Some(now)
         } else {
             None
@@ -25,7 +25,7 @@ impl ActiveGame {
     }
 
     pub(super) fn advance_clock(&mut self, now: Instant) -> ClockAdvanceOutcome {
-        if self.game.state() != State::Running {
+        if self.game.state() != State::InProgress {
             self.last_tick = None;
             return ClockAdvanceOutcome {
                 ticked: false,
@@ -48,7 +48,7 @@ impl ActiveGame {
         *last += Duration::from_millis(elapsed_millis);
         self.game.tick(Duration::from_millis(elapsed_millis));
 
-        if self.game.state() != State::Running {
+        if self.game.state() != State::InProgress {
             self.last_tick = None;
         }
 

@@ -43,6 +43,22 @@ doctest = false
 bench = false
 required-features = ["linux"]
 
+[[bin]]
+name = "esp32s3"
+path = "src/bin/esp32s3.rs"
+test = false
+doctest = false
+bench = false
+required-features = ["esp32s3"]
+
+[[bin]]
+name = "esp32s3-nyan"
+path = "src/bin/esp32s3-nyan.rs"
+test = false
+doctest = false
+bench = false
+required-features = ["esp32s3"]
+
 [features]
 default = []
 rp235x = [
@@ -60,21 +76,47 @@ rp235x = [
     "dep:defmt-rtt",
     "dep:embassy-embedded-hal",
     "dep:embassy-executor",
+    "embassy-executor/platform-cortex-m",
+    "embassy-executor/executor-interrupt",
+    "embassy-executor/defmt",
     "dep:embassy-futures",
     "dep:embassy-net",
+    "embassy-net/defmt",
     "dep:embassy-rp",
     "dep:embassy-sync",
     "dep:embassy-time",
+    "embassy-time/defmt",
+    "embassy-time/defmt-timestamp-uptime",
     "dep:embedded-io-async",
     "dep:panic-probe",
     "dep:static_cell",
 ]
 linux = [
-    "basketball/std",
     "config/std",
     "net/std",
 
     "dep:tokio",
+]
+esp32s3 = [
+    "hub75/esp32s3",
+
+    "dep:critical-section",
+    "dep:embassy-executor",
+    "dep:embassy-futures",
+    "dep:embassy-net",
+    "embassy-net/medium-ethernet",
+    "dep:embassy-time",
+    "dep:embedded-storage",
+    "dep:esp-alloc",
+    "dep:esp-bootloader-esp-idf",
+    "dep:esp-hal",
+    "esp-hal/unstable",
+    "dep:esp-println",
+    "dep:esp-radio",
+    "dep:esp-rtos",
+    "dep:esp-storage",
+    "dep:log",
+    "dep:static_cell",
 ]
 
 [dependencies]
@@ -98,12 +140,23 @@ cyw43-pio = { version = "0.10.0", features = ["defmt"], optional = true }
 defmt = { workspace = true, optional = true }
 defmt-rtt = { workspace = true, optional = true }
 embassy-embedded-hal = { version = "0.6.0", features = ["defmt"], optional = true }
-embassy-executor = { version = "0.10.0", features = ["platform-cortex-m", "executor-thread", "executor-interrupt", "defmt"], optional = true }
+embassy-executor = { version = "0.10.0", features = ["executor-thread"], optional = true }
 embassy-futures = { version = "0.1.2", features = [], optional = true }
-embassy-net = { version = "=0.9.0", features = ["defmt", "tcp", "udp", "raw", "dhcpv4"], optional = true }
+embassy-net = { version = "=0.9.0", features = ["tcp", "udp", "raw", "dhcpv4"], optional = true }
 embassy-rp = { version = "0.10.0", features = ["defmt", "unstable-pac", "time-driver", "critical-section-impl", "rp235xa", "binary-info"], optional = true }
 embassy-sync = { version = "0.8.0", features = ["defmt"], optional = true }
-embassy-time = { version = "0.5.1", features = ["defmt", "defmt-timestamp-uptime"], optional = true }
+embassy-time = { version = "0.5.1", features = [], optional = true }
 embedded-io-async = { version = "0.7.0", features = ["defmt"], optional = true }
 panic-probe = { version = "1.0.0", features = ["print-defmt"], optional = true }
 static_cell = { version = "2.1", features = [], optional = true }
+
+# ESP32-S3 Xtensa
+embedded-storage = { version = "0.3", optional = true }
+esp-alloc = { version = "0.10", optional = true }
+esp-bootloader-esp-idf = { version = "0.5", features = ["esp32s3"], optional = true }
+esp-hal = { version = "1.1", features = ["esp32s3"], optional = true }
+esp-println = { version = "0.13", features = ["esp32s3", "log"], optional = true }
+esp-radio = { version = "0.18", features = ["esp32s3", "wifi", "unstable"], optional = true }
+esp-rtos = { version = "0.3", features = ["esp32s3", "esp-radio", "embassy"], optional = true }
+esp-storage = { version = "0.9", features = ["esp32s3"], optional = true }
+log = { version = "0.4", optional = true }

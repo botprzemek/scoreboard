@@ -142,6 +142,7 @@ impl ServerHandler for PacketHandler {
             event if !self.can_control_game() => self.handle_unauthorized(event, address),
             GameSelect => self.handle_game_select(packet, address),
             GameCreate => self.handle_game_create(packet, address),
+            GameDelete => self.handle_game_delete(packet, address),
             DeviceDisconnect => self.handle_device_disconnect(packet, address),
             DeviceAssignGame => self.handle_device_assign_game(packet),
             GameStart | GameResume => self.handle_game_resume(packet),
@@ -269,6 +270,34 @@ impl PacketHandler {
             self.sequence_id,
             created.to_bytes(),
         ))
+    }
+
+    fn handle_game_delete(
+        &mut self,
+        packet: ClientPacket,
+        address: Option<SocketAddr>,
+    ) -> Option<ServerPacket> {
+        let Ok(target) = Game::try_from(packet) else {
+            return None;
+        };
+        let game_id = target.id();
+        let fallback = match self.game.delete_game(game_id) {
+            Ok(fallback) => fallback,
+            Err(error) => {
+                tracing::warn!("[WS {address:?}] Failed to delete game id={game_id}: {error}");
+                return None;
+            }
+        };
+        tracing::info!("[WS {address:?}] Client deleted game id={game_id}");
+        if self.selected_game_id == game_id {
+            self.update_device_game(fallback.id());
+            return Some(ServerPacket::new(
+                ServerEvent::GameUpdate,
+                self.sequence_id,
+                fallback.to_bytes(),
+            ));
+        }
+        None
     }
 
     fn update_device_game(&mut self, game_id: u64) {

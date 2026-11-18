@@ -122,7 +122,7 @@ async fn task(_spawner: Spawner, peripherals: LedPeripherals) {
 
             let mut game = GAME_STATE.get();
             if game.state() == basketball::State::InProgress {
-                let _ = game.tick(core::time::Duration::from_micros(delta_micros));
+                game = tick_game_in_progress(game, core::time::Duration::from_micros(delta_micros));
             }
 
             let reg = game.regulation_time();
@@ -170,7 +170,7 @@ impl Core1 {
             let is_connected = IS_CONNECTED_TO_MASTER.load(Ordering::Acquire);
             let mut game = GAME_STATE.get();
             if game.state() == basketball::State::InProgress {
-                let _ = game.tick(core::time::Duration::from_micros(delta_micros));
+                game = tick_game_in_progress(game, core::time::Duration::from_micros(delta_micros));
             }
 
             let reg = game.regulation_time();
@@ -216,11 +216,9 @@ impl Core1 {
 
             let mut game = GAME_STATE.get();
 
-            if game.state() == basketball::State::Running {
+            if game.state() == basketball::State::InProgress {
                 GAME_STATE.update(|g| {
-                    if g.state() == basketball::State::Running {
-                        g.tick(delta);
-                    }
+                    *g = tick_game_in_progress(*g, delta);
                 });
                 game = GAME_STATE.get();
             }
@@ -239,6 +237,19 @@ impl Core1 {
 
             std::thread::sleep(std::time::Duration::from_millis(25));
         }
+    }
+}
+
+fn tick_game_in_progress(
+    game: basketball::Game,
+    delta: core::time::Duration,
+) -> basketball::Game {
+    match basketball::GameMachine::from_in_progress(game) {
+        Some(machine) => match machine.tick(delta) {
+            Ok(running) => running.into_game(),
+            Err(ended) => ended.into_game(),
+        },
+        None => game,
     }
 }
 
@@ -271,11 +282,13 @@ fn print_terminal_scoreboard(game: &basketball::Game, is_connected: bool) {
         _ => "Q?",
     };
     let state_str = match game.state() {
-        basketball::State::Running => "RUNNING",
+        basketball::State::Scheduled => "SCHEDULED",
+        basketball::State::QuarterStart => "QUARTER START",
+        basketball::State::InProgress => "IN PROGRESS",
         basketball::State::Paused => "PAUSED",
         basketball::State::QuarterEnd => "QUARTER END",
-        basketball::State::GameEnd => "GAME END",
-        _ => "IDLE",
+        basketball::State::Final => "FINAL",
+        _ => "UNKNOWN",
     };
     let master_str = if is_connected {
         "CONNECTED"

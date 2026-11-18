@@ -1,9 +1,5 @@
-use core::time::Duration;
-
-use crate::{
-    Discipline, Quarter, RegulationTime, Score, ScoreRead, ScoreWrite, Scores, ShotClockTime,
-    State, Team, layout,
-};
+use crate::BasketballError;
+use crate::{Discipline, Quarter, RegulationTime, ScoreRead, ShotClockTime, State, Team, layout};
 
 use net::{ClientPacket, ServerPacket};
 
@@ -26,12 +22,12 @@ pub struct Game {
 
 impl Default for Game {
     fn default() -> Self {
-        Self::new(Discipline::Fiba5v5)
+        Self::new(1, Discipline::Fiba5v5)
     }
 }
 
 impl TryFrom<ClientPacket> for Game {
-    type Error = &'static str;
+    type Error = BasketballError;
 
     fn try_from(packet: ClientPacket) -> Result<Self, Self::Error> {
         Self::from_bytes(&packet.data())
@@ -39,19 +35,10 @@ impl TryFrom<ClientPacket> for Game {
 }
 
 impl TryFrom<ServerPacket> for Game {
-    type Error = &'static str;
+    type Error = BasketballError;
 
     fn try_from(packet: ServerPacket) -> Result<Self, Self::Error> {
         Self::from_bytes(&packet.data())
-    }
-}
-
-impl ScoreWrite for Game {
-    fn add_score(&mut self, team: Team, score: Score) {
-        match team {
-            Team::Home => self.home_score = self.home_score.saturating_add(score.into()),
-            Team::Away => self.away_score = self.away_score.saturating_add(score.into()),
-        }
     }
 }
 
@@ -63,22 +50,14 @@ impl ScoreRead for Game {
         }
     }
 
-    fn scores(&self) -> Scores {
-        Scores {
-            home: self.home_score,
-            away: self.away_score,
-        }
+    fn scores(&self) -> (u16, u16) {
+        (self.home_score, self.away_score)
     }
 }
 
 impl Game {
     #[must_use]
-    pub fn new(discipline: Discipline) -> Self {
-        Self::new_with_id(1, discipline)
-    }
-
-    #[must_use]
-    pub fn new_with_id(id: u64, discipline: Discipline) -> Self {
+    pub fn new(id: u64, discipline: Discipline) -> Self {
         let config = discipline.config();
 
         Self {
@@ -107,26 +86,10 @@ impl Game {
         }
     }
 
-    #[must_use]
-    pub fn id(&self) -> u64 {
-        self.id
-    }
-
-    pub fn set_id(&mut self, id: u64) {
-        self.id = id;
-    }
-
-    #[must_use]
-    pub fn regulation_time(&self) -> RegulationTime {
-        RegulationTime::from_millis(self.regulation_millis)
-    }
-
-    #[must_use]
-    pub fn clock_time(&self) -> ShotClockTime {
-        ShotClockTime::from_millis(self.clock_millis)
-    }
-
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, &'static str> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, BasketballError> {
+        if bytes.len() < layout::DATA_SIZE {
+            return Err(BasketballError::InvalidPayloadLength);
+        }
         let mut home_score = [0u8; 2];
         let mut away_score = [0u8; 2];
         let mut regulation_millis = [0u8; 4];
@@ -183,14 +146,17 @@ impl Game {
 
         bytes
     }
+}
+
+impl Game {
+    #[must_use]
+    pub fn id(&self) -> u64 {
+        self.id
+    }
 
     #[must_use]
     pub fn state(&self) -> State {
         self.state
-    }
-
-    pub fn set_state(&mut self, state: State) {
-        self.state = state;
     }
 
     #[must_use]
@@ -204,6 +170,16 @@ impl Game {
     }
 
     #[must_use]
+    pub fn home_score(&self) -> u16 {
+        self.home_score
+    }
+
+    #[must_use]
+    pub fn away_score(&self) -> u16 {
+        self.away_score
+    }
+
+    #[must_use]
     pub fn regulation_millis(&self) -> u32 {
         self.regulation_millis
     }
@@ -212,91 +188,80 @@ impl Game {
     pub fn clock_millis(&self) -> u32 {
         self.clock_millis
     }
+}
 
-    #[must_use]
-    pub fn display_regulation_time(&self) -> (u8, u8, u8) {
-        let total_seconds = self.regulation_millis / 1000;
-        let minutes = (total_seconds / 60) as u8;
-        let seconds = (total_seconds % 60) as u8;
-        let centiseconds = ((self.regulation_millis % 1000) / 10) as u8;
-        (minutes, seconds, centiseconds)
+impl Game {
+    pub(crate) fn set_state(&mut self, state: State) -> &mut Self {
+        self.state = state;
+
+        self
     }
 
-    #[must_use]
-    pub fn display_shot_clock(&self) -> (u8, u8) {
-        let seconds = (self.clock_millis / 1000) as u8;
-        let centiseconds = ((self.clock_millis % 1000) / 10) as u8;
-        (seconds, centiseconds)
+    pub(crate) fn set_home_score(&mut self, score: u16) -> &mut Self {
+        self.home_score = score;
+
+        self
     }
 
-    pub fn tick(&mut self, delta: Duration) {
-        match self.state {
-            State::Scheduled => self.handle_idle(),
-            State::QuarterStart => self.handle_quarter_start(),
-            State::InProgress => self.handle_in_progress(delta),
-            State::Paused => self.handle_paused(),
-            State::QuarterEnd => self.handle_quarter_end(),
-            State::Final => self.handle_final(),
-        }
+    pub(crate) fn set_away_score(&mut self, score: u16) -> &mut Self {
+        self.away_score = score;
+
+        self
     }
 
-    pub fn next_quarter(&mut self) {
-        if self.regulation_millis != 0 {
-            return;
-        }
+    pub(crate) fn set_quarter(&mut self, quarter: Quarter) -> &mut Self {
+        self.quarter = quarter;
 
-        self.state = State::Paused;
-
-        self.quarter = match self.quarter {
-            Quarter::Q1 => Quarter::Q2,
-            Quarter::Q2 => Quarter::Q3,
-            Quarter::Q3 => Quarter::Q4,
-            Quarter::Q4 | Quarter::None => {
-                self.state = State::Final;
-                return;
-            }
-        };
-
-        let config = self.discipline.config();
-        self.regulation_millis = config.regulation_millis;
-        self.clock_millis = config.clock_millis;
+        self
     }
 
-    fn handle_idle(&mut self) {}
+    pub(crate) fn set_regulation_millis(&mut self, millis: u32) -> &mut Self {
+        self.regulation_millis = millis;
 
-    fn handle_quarter_start(&mut self) {
-        if self.quarter() == Quarter::Q4 {
-            self.set_state(State::Final);
+        self
+    }
 
-            return;
-        }
+    pub(crate) fn set_clock_millis(&mut self, millis: u32) -> &mut Self {
+        self.clock_millis = millis;
 
-        self.regulation_millis = self.discipline.config().regulation_millis;
+        self
+    }
+}
 
+impl Game {
+    pub(crate) fn start_quarter(&mut self) {
+        self.set_state(State::QuarterStart);
+    }
+
+    pub(crate) fn resume(&mut self) {
         self.set_state(State::InProgress);
     }
 
-    fn handle_in_progress(&mut self, delta: Duration) {
-        let delta_millis = delta.as_millis() as u32;
-        self.regulation_millis = self.regulation_millis.saturating_sub(delta_millis);
-        if self.regulation_millis > 0 {
-            return;
-        }
+    pub(crate) fn pause(&mut self) {
+        self.set_state(State::Paused);
+    }
 
+    pub(crate) fn end_quarter(&mut self) {
         self.set_state(State::QuarterEnd);
     }
 
-    fn handle_paused(&mut self) {}
-
-    fn handle_quarter_end(&mut self) {}
-
-    fn handle_final(&mut self) {}
-
-    pub fn resume(&mut self) {
-        self.set_state(State::InProgress);
+    pub(crate) fn end(&mut self) {
+        self.set_state(State::Final);
     }
 
-    pub fn pause(&mut self) {
-        self.set_state(State::Paused);
+    pub(crate) fn reset(&mut self) {
+        *self = Self::new(self.id, self.discipline);
+    }
+}
+
+impl Game {
+    #[must_use]
+    pub fn regulation_time(&self) -> RegulationTime {
+        RegulationTime::from_millis(self.regulation_millis)
+    }
+
+    #[must_use]
+    pub fn clock_time(&self) -> ShotClockTime {
+        ShotClockTime::from_millis(self.clock_millis)
     }
 }

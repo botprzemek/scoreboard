@@ -85,10 +85,8 @@ impl WorkerRegistry {
             }
         }
 
-        self.addr_token_index.insert(
-            (address, session.session_token()),
-            serial_number.clone(),
-        );
+        self.addr_token_index
+            .insert((address, session.session_token()), serial_number.clone());
         if game_id != 0 {
             self.workers_by_game
                 .entry(game_id)
@@ -171,7 +169,10 @@ impl WorkerRegistry {
         assignment: &DeviceGameAssignment,
         mut try_send: impl FnMut(SocketAddr, [u8; PACKET_SIZE]) -> bool,
     ) {
-        let Some(old_game_id) = self.workers.get(&assignment.serial_number).map(|w| w.game_id)
+        let Some(old_game_id) = self
+            .workers
+            .get(&assignment.serial_number)
+            .map(|w| w.game_id)
         else {
             return;
         };
@@ -194,7 +195,7 @@ impl WorkerRegistry {
         let game = (assignment.game_id != 0)
             .then(|| game_service.by_id(assignment.game_id))
             .flatten()
-            .unwrap_or_else(|| Game::new_with_id(0, Discipline::Fiba5v5));
+            .unwrap_or_else(|| Game::new(0, Discipline::Fiba5v5));
 
         let packet = worker.session.send_game_update(game.to_bytes());
         if try_send(worker.address, packet.to_bytes()) {

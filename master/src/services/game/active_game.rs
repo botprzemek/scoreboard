@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use basketball::{Game, State};
+use basketball::{Game, GameMachine, State};
 
 #[derive(Clone, Copy)]
 pub(super) struct ClockAdvanceOutcome {
@@ -46,7 +46,12 @@ impl ActiveGame {
         let previous_quarter = self.game.quarter();
 
         *last += Duration::from_millis(elapsed_millis);
-        self.game.tick(Duration::from_millis(elapsed_millis));
+        if let Some(machine) = GameMachine::from_in_progress(self.game) {
+            self.game = match machine.tick(Duration::from_millis(elapsed_millis)) {
+                Ok(running) => running.into_game(),
+                Err(ended) => ended.into_game(),
+            };
+        }
 
         if self.game.state() != State::InProgress {
             self.last_tick = None;

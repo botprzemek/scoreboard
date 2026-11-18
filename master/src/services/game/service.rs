@@ -41,7 +41,7 @@ impl GameService {
     ) -> Result<(Self, Vec<JoinHandle<()>>), String> {
         let mut initial_games = game_repository.select()?;
         if initial_games.is_empty() {
-            let default_game = Game::new_with_id(1, Discipline::Fiba5v5);
+            let default_game = Game::new(1, Discipline::Fiba5v5);
             initial_games.push(default_game);
             game_repository.upsert_many(&initial_games)?;
         }
@@ -127,7 +127,7 @@ impl GameService {
     #[must_use]
     pub fn default_game(&self) -> Game {
         self.by_id(1)
-            .unwrap_or_else(|| Game::new_with_id(1, Discipline::Fiba5v5))
+            .unwrap_or_else(|| Game::new(1, Discipline::Fiba5v5))
     }
 
     pub fn create_game(&self, discipline: Discipline) -> Result<Game, &'static str> {
@@ -137,7 +137,7 @@ impl GameService {
                 .write()
                 .expect("game actors lock should not be poisoned");
             let next_id = Self::next_game_id(&actors)?;
-            let created = Game::new_with_id(next_id, discipline);
+            let created = Game::new(next_id, discipline);
             let mut tasks = self
                 .game_tasks
                 .lock()
@@ -195,7 +195,7 @@ impl GameService {
             .borrow()
             .first()
             .copied()
-            .unwrap_or_else(|| Game::new_with_id(1, Discipline::Fiba5v5)))
+            .unwrap_or_else(|| Game::new(1, Discipline::Fiba5v5)))
     }
 
     fn next_game_id(actors: &HashMap<u64, GameHandle>) -> Result<u64, &'static str> {

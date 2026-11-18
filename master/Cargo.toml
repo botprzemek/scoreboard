@@ -10,7 +10,7 @@ net = { workspace = true, features = ["serde", "std"] }
 
 axum = { version = "0.8.9", features = ["ws"] }
 futures = { workspace = true }
-rand = "0.9.5"
+rand = { workspace = true }
 redb = { workspace = true }
 rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { workspace = true }

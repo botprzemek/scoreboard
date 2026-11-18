@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use crate::adapters::repositories::{GameRepository, Repository};
 
-use basketball::{Game, Score, ScoreWrite, State, Team};
+use basketball::{Game, Score, State, Team};
 use net::{ServerEvent, ServerPacket};
 use tokio::sync::{broadcast, mpsc, watch};
 use tokio::task::{JoinHandle, JoinSet};
@@ -170,14 +170,16 @@ pub(super) fn spawn_game_actor(
     handle
 }
 
-fn apply_command(game: &mut Game, cmd: GameCommand) {
-    match cmd {
-        GameCommand::AddScore(team, score) => game.add_score(team, score),
-        GameCommand::Resume => game.resume(),
-        GameCommand::Pause => game.pause(),
-        GameCommand::End => game.set_state(State::Final),
-        GameCommand::Reset => *game = Game::new_with_id(game.id(), game.discipline()),
-    }
+fn apply_command(_game: &mut Game, _cmd: GameCommand) {
+    // TODO
+    //
+    // match cmd {
+    //     GameCommand::AddScore(team, score) => game.add_score(team, score),
+    //     GameCommand::Resume => game.resume(),
+    //     GameCommand::Pause => game.pause(),
+    //     GameCommand::End => game.end(),
+    //     GameCommand::Reset => game.reset(),
+    // }
 }
 
 fn publish_frame_if_changed(

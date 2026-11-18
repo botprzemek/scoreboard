@@ -1,3 +1,5 @@
+use crate::BasketballError;
+
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -16,13 +18,13 @@ impl From<Team> for u8 {
 }
 
 impl TryFrom<u8> for Team {
-    type Error = &'static str;
+    type Error = BasketballError;
 
     fn try_from(team: u8) -> Result<Self, Self::Error> {
         match team {
             0x00 => Ok(Self::Home),
             0x01 => Ok(Self::Away),
-            _ => Err(""),
+            other => Err(BasketballError::InvalidTeam(other)),
         }
     }
 }

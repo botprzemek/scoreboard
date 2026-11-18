@@ -186,7 +186,8 @@ impl PacketHandler {
     fn build_handshake_ack(&mut self) -> ServerPacket {
         let game = self
             .selected_game()
-            .unwrap_or_else(|| Game::new_with_id(0, Discipline::Fiba5v5));
+            .unwrap_or_else(|| Game::new(0, Discipline::Fiba5v5));
+
         ServerPacket::new(ServerEvent::HandshakeAck, self.sequence_id, game.to_bytes())
     }
 

@@ -1,3 +1,5 @@
+use crate::BasketballError;
+
 #[non_exhaustive]
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -13,7 +15,7 @@ pub enum State {
 }
 
 impl TryFrom<u8> for State {
-    type Error = &'static str;
+    type Error = BasketballError;
 
     fn try_from(state: u8) -> Result<Self, Self::Error> {
         match state {
@@ -23,7 +25,39 @@ impl TryFrom<u8> for State {
             0x03 => Ok(Self::Paused),
             0x04 => Ok(Self::QuarterEnd),
             0x05 => Ok(Self::Final),
-            _ => Err(""),
+            other => Err(BasketballError::InvalidState(other)),
         }
+    }
+}
+
+impl State {
+    #[must_use]
+    pub const fn is_scheduled(self) -> bool {
+        matches!(self, Self::Scheduled)
+    }
+
+    #[must_use]
+    pub const fn has_quarter_started(self) -> bool {
+        matches!(self, Self::QuarterStart)
+    }
+
+    #[must_use]
+    pub const fn is_in_progress(self) -> bool {
+        matches!(self, Self::InProgress)
+    }
+
+    #[must_use]
+    pub const fn is_paused(self) -> bool {
+        matches!(self, Self::Paused)
+    }
+
+    #[must_use]
+    pub const fn has_quarter_end(self) -> bool {
+        matches!(self, Self::QuarterEnd)
+    }
+
+    #[must_use]
+    pub const fn is_final(self) -> bool {
+        matches!(self, Self::Final)
     }
 }

@@ -6277,7 +6277,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "futures",
- "rand 0.9.5",
+ "rand 0.10.3",
  "redb",
  "rusqlite",
  "scoreboard-basketball",

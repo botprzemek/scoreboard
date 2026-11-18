@@ -1,3 +1,5 @@
+use crate::BasketballError;
+
 #[non_exhaustive]
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -12,7 +14,7 @@ pub enum Quarter {
 }
 
 impl TryFrom<u8> for Quarter {
-    type Error = &'static str;
+    type Error = BasketballError;
 
     fn try_from(quarter: u8) -> Result<Self, Self::Error> {
         match quarter {
@@ -21,7 +23,7 @@ impl TryFrom<u8> for Quarter {
             0x02 => Ok(Self::Q2),
             0x03 => Ok(Self::Q3),
             0x04 => Ok(Self::Q4),
-            _ => Err(""),
+            other => Err(BasketballError::InvalidQuarter(other)),
         }
     }
 }

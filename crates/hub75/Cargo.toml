@@ -5,8 +5,8 @@ edition.workspace = true
 
 [dependencies]
 cortex-m = { workspace = true, optional = true }
-embassy-rp = { version = "0.10.0", features = [], optional = true }
-esp-hal = { version = "1.0", features = [], optional = true }
+embassy-rp = { workspace = true, optional = true }
+esp-hal = { workspace = true, optional = true }
 
 [features]
 default = []

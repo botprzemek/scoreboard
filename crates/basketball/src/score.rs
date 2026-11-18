@@ -1,4 +1,4 @@
-use crate::Team;
+use crate::{BasketballError, Team};
 
 #[non_exhaustive]
 #[repr(u8)]
@@ -13,21 +13,14 @@ pub enum Score {
     FieldGoal3 = 3,
 }
 
-#[non_exhaustive]
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub struct Scores {
-    pub home: u16,
-    pub away: u16,
-}
-
 pub trait ScoreRead {
     fn score(&self, team: Team) -> u16;
 
-    fn scores(&self) -> Scores;
+    fn scores(&self) -> (u16, u16);
 }
 
 pub trait ScoreWrite {
-    fn add_score(&mut self, team: Team, score: Score);
+    fn add_score(&mut self, team: Team, score: Score) -> &mut Self;
 }
 
 pub trait Scorable: ScoreRead + ScoreWrite {}
@@ -46,14 +39,14 @@ impl From<Score> for u16 {
 }
 
 impl TryFrom<u8> for Score {
-    type Error = &'static str;
+    type Error = BasketballError;
 
     fn try_from(score: u8) -> Result<Self, Self::Error> {
         match score {
             1 => Ok(Self::FreeThrow),
             2 => Ok(Self::FieldGoal2),
             3 => Ok(Self::FieldGoal3),
-            _ => Err(""),
+            other => Err(BasketballError::InvalidScore(other)),
         }
     }
 }

@@ -17,7 +17,6 @@ impl Repository<Game> for GameRepository {
             .read_all(Table::Games)?
             .into_iter()
             .filter_map(Self::decode_entry)
-            .map(Self::with_entry_id)
             .collect();
 
         games.sort_by_key(Game::id);
@@ -29,6 +28,7 @@ impl Repository<Game> for GameRepository {
         if entities.is_empty() {
             return Ok(());
         }
+
         let entries = entities
             .iter()
             .map(Self::to_entry)
@@ -54,27 +54,13 @@ impl GameRepository {
         (game.id().to_string(), game.to_bytes().to_vec())
     }
 
-    fn decode_entry((key, value): (String, Vec<u8>)) -> Option<(String, Game)> {
+    fn decode_entry((key, value): (String, Vec<u8>)) -> Option<Game> {
         match Game::from_bytes(&value) {
-            Ok(game) => Some((key, game)),
+            Ok(game) => Some(game),
             Err(error) => {
                 tracing::warn!("Skipping invalid game record for key '{key}': {error}");
                 None
             }
         }
-    }
-
-    fn with_entry_id((key, mut game): (String, Game)) -> Game {
-        let key = match key.parse::<u64>() {
-            Ok(key) => key,
-            Err(_) => return game,
-        };
-
-        if key == 0 {
-            return game;
-        }
-
-        game.set_id(key);
-        game
     }
 }

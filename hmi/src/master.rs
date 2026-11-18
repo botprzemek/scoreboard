@@ -8,7 +8,7 @@ use crate::adapters::ws::{
     save_master_address,
 };
 
-use basketball::{Discipline, Game, Score, ScoreRead, ScoreWrite, Scores, Team};
+use basketball::{Discipline, Game, GameMachine, Score, ScoreWrite, Team};
 use config::DeviceConfig;
 use futures::StreamExt;
 use futures::channel::mpsc::{self, UnboundedSender};
@@ -46,7 +46,7 @@ impl MasterContext {
         let sequence_id = StoredValue::new(Arc::new(AtomicU16::new(0)));
         let logs = RwSignal::new(Vec::<String>::new());
 
-        let current_game = RwSignal::new(Game::new(Discipline::Fiba5v5));
+        let current_game = RwSignal::new(Game::new(1, Discipline::Fiba5v5));
         let available_games = RwSignal::new(Vec::<Game>::new());
         let connected_devices = RwSignal::new(Vec::<Device>::new());
         let my_device = RwSignal::new(
@@ -406,7 +406,7 @@ impl MasterContext {
         {
             self.current_game.set(target);
         }
-        let target_game = Game::new_with_id(game_id, Discipline::Fiba5v5);
+        let target_game = Game::new(game_id, Discipline::Fiba5v5);
         self.send_packet(ClientEvent::GameSelect, target_game.to_bytes());
     }
 
@@ -419,25 +419,24 @@ impl MasterContext {
             .max()
             .unwrap_or(0)
             + 1;
-        let new_game = Game::new_with_id(next_id, discipline);
+        let new_game = Game::new(next_id, discipline);
         self.current_game.set(new_game);
         self.send_packet(ClientEvent::GameCreate, new_game.to_bytes());
     }
 
-    pub fn delete_game(&self, game_id: u64) {
-        let target = Game::new_with_id(game_id, Discipline::Fiba5v5);
+    pub fn delete_game(&self, id: u64) {
+        let target = Game::new(id, Discipline::Fiba5v5);
         self.send_packet(ClientEvent::GameDelete, target.to_bytes());
         self.available_games
-            .update(|games| games.retain(|g| g.id() != game_id));
+            .update(|games| games.retain(|g| g.id() != id));
     }
 
     pub fn send_game_event(&self, event: ClientEvent) {
         let game = self.current_game.get_untracked();
+
         self.send_packet(event, game.to_bytes());
     }
 
-    /// ScoreWrite integration: updates local optimistic state via `basketball::ScoreWrite`
-    /// and dispatches the corresponding `ClientEvent` to Master.
     pub fn write_score(&self, team: Team, score: Score) {
         let mut game = self.current_game.get_untracked();
         let event = match (team, score) {
@@ -449,15 +448,17 @@ impl MasterContext {
             (Team::Away, Score::FieldGoal3) => ClientEvent::GameScoreAway3FG,
             _ => return,
         };
-        game.add_score(team, score);
+
+        if let Some(mut machine) = GameMachine::from_in_progress(game) {
+            machine.add_score(team, score);
+            game = machine.into_game();
+        } else if let Some(mut machine) = GameMachine::from_paused(game) {
+            machine.add_score(team, score);
+            game = machine.into_game();
+        }
+
         self.current_game.set(game);
         self.send_packet(event, game.to_bytes());
-    }
-
-    /// ScoreRead helper: reads current scores through `basketball::ScoreRead`.
-    #[must_use]
-    pub fn read_scores(game: &Game) -> Scores {
-        ScoreRead::scores(game)
     }
 
     pub fn assign_device_game(&self, mut device: Device, game_id: u64) {

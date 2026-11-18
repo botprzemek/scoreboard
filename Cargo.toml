@@ -47,8 +47,11 @@ cortex-m = { version = "0.7.6" }
 cortex-m-rt = { version = "0.7.0" }
 defmt = { version = "1.2.0" }
 defmt-rtt = { version = "1.0.0" }
+embassy-rp = { version = "0.10.0" }
+esp-hal = { version = "1.0" }
 futures = { version = "0.3.34", default-features = false }
-heapless = "0.9.3"
+heapless = { version = "0.9.3" }
+rand = { version = "0.10.2" }
 redb = { version = "4.2.0" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.151" }

@@ -4,6 +4,14 @@ version.workspace = true
 edition.workspace = true
 
 [[bin]]
+name = "linux"
+path = "src/bin/linux.rs"
+test = false
+doctest = false
+bench = false
+required-features = ["linux"]
+
+[[bin]]
 name = "rp235x"
 path = "src/bin/rp235x.rs"
 test = false
@@ -12,16 +20,8 @@ bench = false
 required-features = ["rp235x"]
 
 [[bin]]
-name = "rp235x-nyan"
-path = "src/bin/rp235x-nyan.rs"
-test = false
-doctest = false
-bench = false
-required-features = ["rp235x"]
-
-[[bin]]
-name = "rp235x-viz"
-path = "src/bin/rp235x-viz.rs"
+name = "rp235x-nyan-cat"
+path = "src/bin/rp235x-nyan-cat.rs"
 test = false
 doctest = false
 bench = false
@@ -36,14 +36,6 @@ bench = false
 required-features = ["rp235x"]
 
 [[bin]]
-name = "linux"
-path = "src/bin/linux.rs"
-test = false
-doctest = false
-bench = false
-required-features = ["linux"]
-
-[[bin]]
 name = "esp32s3"
 path = "src/bin/esp32s3.rs"
 test = false
@@ -52,8 +44,16 @@ bench = false
 required-features = ["esp32s3"]
 
 [[bin]]
-name = "esp32s3-nyan"
-path = "src/bin/esp32s3-nyan.rs"
+name = "esp32s3-nyan-cat"
+path = "src/bin/esp32s3-nyan-cat.rs"
+test = false
+doctest = false
+bench = false
+required-features = ["esp32s3"]
+
+[[bin]]
+name = "esp32s3-bad-apple"
+path = "src/bin/esp32s3-bad-apple.rs"
 test = false
 doctest = false
 bench = false

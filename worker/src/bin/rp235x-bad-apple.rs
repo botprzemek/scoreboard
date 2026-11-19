@@ -18,7 +18,7 @@ const WIDTH: usize = 64;
 const HEIGHT: usize = 32;
 const HALF_HEIGHT: usize = HEIGHT / 2;
 const FRAME_BYTES: usize = (WIDTH * HEIGHT) / 2;
-const DISPLAY_BRIGHTNESS: u8 = 25;
+const DISPLAY_BRIGHTNESS: u8 = 100;
 const FRAME_DURATION_MICROS: u64 = 33_333;
 
 const NEW_FRAME_BIT: u8 = 0x80;
@@ -121,7 +121,7 @@ fn main() -> ! {
     let s2 = BUF2.init_with(|| BufferSlot(UnsafeCell::new(DisplayBuffer::new())));
 
     for slot in [&*s0, &*s1, &*s2] {
-        unsafe { (*slot.0.get()).set_brightness(100) };
+        unsafe { (*slot.0.get()).set_brightness(DISPLAY_BRIGHTNESS) };
     }
 
     BUFFER_PTRS[0].store(ptr::from_ref(s0).cast_mut(), Ordering::Release);

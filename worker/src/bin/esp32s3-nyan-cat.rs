@@ -1,18 +1,18 @@
 #![no_std]
 #![no_main]
 
-use scoreboard_worker::peripherals;
+use core::panic::PanicInfo;
 
-use defmt_rtt as _;
-use embassy_time::Instant;
-use hub75::{Color, DisplayBuffer, LedOutputs};
-use panic_probe as _;
+use esp_hal::time::Instant;
+use hub75::{Color, DisplayBuffer, LedOutputs, LedPeripherals};
 use static_cell::StaticCell;
+
+esp_bootloader_esp_idf::esp_app_desc!();
 
 const WIDTH: usize = 64;
 const HEIGHT: usize = 32;
 const HALF_HEIGHT: usize = HEIGHT / 2;
-const DISPLAY_BRIGHTNESS: u8 = 30;
+const DISPLAY_BRIGHTNESS: u8 = 100;
 const FRAME_DURATION_MICROS: u64 = 70_000;
 
 const NAVY: Color = [0, 51, 102];
@@ -31,6 +31,11 @@ const SPRINKLE_PINK: Color = [255, 51, 153];
 const CHEEK_PINK: Color = [255, 153, 153];
 
 static DISPLAY: StaticCell<DisplayBuffer<WIDTH, HEIGHT, HALF_HEIGHT>> = StaticCell::new();
+
+#[panic_handler]
+fn panic(_info: &PanicInfo) -> ! {
+    loop {}
+}
 
 #[inline(always)]
 const fn pixel_color(code: u8) -> Color {
@@ -64,28 +69,43 @@ fn draw_frame(
     display.prepare_bitplanes();
 }
 
-#[cortex_m_rt::entry]
+#[esp_hal::main]
 fn main() -> ! {
-    let raw_peripherals = embassy_rp::init(Default::default());
-    let board_peripherals = peripherals::split(raw_peripherals);
+    let peripherals = esp_hal::init(esp_hal::Config::default());
 
-    let mut outputs = LedOutputs::from_peripherals(board_peripherals.led);
-    let display = DISPLAY.init(DisplayBuffer::new());
-    display.set_brightness(100);
+    let led_peripherals = LedPeripherals::new(
+        peripherals.GPIO42,
+        peripherals.GPIO41,
+        peripherals.GPIO40,
+        peripherals.GPIO38,
+        peripherals.GPIO39,
+        peripherals.GPIO37,
+        peripherals.GPIO45,
+        peripherals.GPIO36,
+        peripherals.GPIO48,
+        peripherals.GPIO35,
+        peripherals.GPIO21,
+        peripherals.GPIO2,
+        peripherals.GPIO47,
+        peripherals.GPIO14,
+    );
+
+    let mut outputs = LedOutputs::from_peripherals(led_peripherals);
+    let display = DISPLAY.init_with(DisplayBuffer::new);
+    display.set_brightness(DISPLAY_BRIGHTNESS);
 
     let mut frame_index = 0usize;
     draw_frame(display, &NYAN_FRAMES[frame_index]);
     let mut last_frame_at = Instant::now();
 
     loop {
-        let now = Instant::now();
-        if (now - last_frame_at).as_micros() >= FRAME_DURATION_MICROS {
-            last_frame_at = now;
+        if last_frame_at.elapsed().as_micros() >= FRAME_DURATION_MICROS {
+            last_frame_at = Instant::now();
             frame_index = (frame_index + 1) % NYAN_FRAMES.len();
             draw_frame(display, &NYAN_FRAMES[frame_index]);
         }
 
-        outputs.render_bcm_frame_sio_fast(display.bitplanes(), DISPLAY_BRIGHTNESS);
+        outputs.render_bcm_frame_sync_with_brightness(display.bitplanes(), DISPLAY_BRIGHTNESS);
     }
 }
 

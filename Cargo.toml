@@ -1,18 +1,21 @@
 [workspace]
 resolver = "3"
 members = [
-    "crates/*",
-    "configurator",
-    "hmi",
-    "hmi/hmi-tauri",
-    "master",
-    "worker",
+    "scoreboard-basketball",
+    "scoreboard-config",
+    "scoreboard-configurator",
+    "scoreboard-hmi",
+    "scoreboard-hmi/native",
+    "scoreboard-hub75",
+    "scoreboard-master",
+    "scoreboard-net",
+    "scoreboard-worker",
 ]
 default-members = [
-    "crates/basketball",
-    "crates/config",
-    "crates/hub75",
-    "crates/net",
+    "scoreboard-basketball",
+    "scoreboard-config",
+    "scoreboard-hub75",
+    "scoreboard-net",
 ]
 
 [workspace.package]
@@ -38,10 +41,11 @@ opt-level = 3
 debug = true
 
 [workspace.dependencies]
-basketball = { package = "scoreboard-basketball", path = "crates/basketball" }
-config = { package = "scoreboard-config", path = "crates/config", default-features = false }
-hub75 = { package = "scoreboard-hub75", path = "crates/hub75", default-features = false }
-net = { package = "scoreboard-net", path = "crates/net" }
+scoreboard-basketball = { package = "scoreboard-basketball", path = "scoreboard-basketball" }
+scoreboard-config = { package = "scoreboard-config", path = "scoreboard-config", default-features = false }
+scoreboard-hub75 = { package = "scoreboard-hub75", path = "scoreboard-hub75", default-features = false }
+scoreboard-net = { package = "scoreboard-net", path = "scoreboard-net" }
+scoreboard-worker = { package = "scoreboard-worker", path = "scoreboard-worker" }
 
 cortex-m = { version = "0.7.6" }
 cortex-m-rt = { version = "0.7.0" }

@@ -1,0 +1,18 @@
+[package]
+name = "scoreboard-native"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "tauri_app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[dependencies]
+scoreboard-net = { workspace = true }
+
+tauri = { version = "2.12.5", features = ["macos-private-api", "image-png", "image-ico"] }
+tauri-plugin-opener = { version = "2" }
+tokio = { workspace = true, features = ["rt", "time"] }
+
+[build-dependencies]
+tauri-build = { version = "2.7.4", features = [] }

@@ -1,0 +1,78 @@
+[workspace]
+resolver = "3"
+members = [
+    "scoreboard-basketball",
+    "scoreboard-config",
+    "scoreboard-configurator",
+    "scoreboard-hmi",
+    "scoreboard-hmi/native",
+    "scoreboard-hub75",
+    "scoreboard-master",
+    "scoreboard-net",
+    "scoreboard-worker",
+]
+default-members = [
+    "scoreboard-basketball",
+    "scoreboard-config",
+    "scoreboard-hub75",
+    "scoreboard-net",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[profile.dev]
+opt-level = 1
+debug = true
+incremental = true
+
+[profile.dev.package.esp-radio]
+opt-level = 3
+
+[profile.release]
+lto = true
+opt-level = "s"
+incremental = false
+codegen-units = 1
+
+[profile.bench]
+opt-level = 3
+debug = true
+
+[workspace.dependencies]
+scoreboard-basketball = { package = "scoreboard-basketball", path = "scoreboard-basketball" }
+scoreboard-config = { package = "scoreboard-config", path = "scoreboard-config", default-features = false }
+scoreboard-hub75 = { package = "scoreboard-hub75", path = "scoreboard-hub75", default-features = false }
+scoreboard-net = { package = "scoreboard-net", path = "scoreboard-net" }
+scoreboard-worker = { package = "scoreboard-worker", path = "scoreboard-worker" }
+
+cortex-m = { version = "0.7.6" }
+cortex-m-rt = { version = "0.7.0" }
+defmt = { version = "1.2.0" }
+defmt-rtt = { version = "1.0.0" }
+embassy-rp = { version = "0.10.0" }
+esp-hal = { version = "1.0" }
+futures = { version = "0.3.34", default-features = false }
+heapless = { version = "0.9.3" }
+rand = { version = "0.10.2" }
+redb = { version = "4.2.0" }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.151" }
+tempfile = { version = "3.27.0" }
+tokio = { version = "1.53.1" }
+web-sys = { version = "0.3.105" }
+
+[patch.crates-io]
+embassy-embedded-hal = { git = "https://github.com/embassy-rs/embassy.git", rev = "b720605" }
+embassy-sync = { git = "https://github.com/embassy-rs/embassy.git", rev = "b720605" }
+embassy-executor = { git = "https://github.com/embassy-rs/embassy.git", rev = "b720605" }
+embassy-time = { git = "https://github.com/embassy-rs/embassy.git", rev = "b720605" }
+embassy-time-driver = { git = "https://github.com/embassy-rs/embassy.git", rev = "b720605" }
+embassy-time-queue-utils = { git = "https://github.com/embassy-rs/embassy.git", rev = "b720605" }
+embassy-rp = { git = "https://github.com/embassy-rs/embassy.git", rev = "b720605" }
+embassy-net = { git = "https://github.com/embassy-rs/embassy.git", rev = "b720605" }
+embassy-net-driver = { git = "https://github.com/embassy-rs/embassy.git", rev = "b720605" }
+embassy-futures = { git = "https://github.com/embassy-rs/embassy.git", rev = "b720605" }
+cyw43 = { git = "https://github.com/embassy-rs/embassy.git", rev = "b720605" }
+cyw43-pio = { git = "https://github.com/embassy-rs/embassy.git", rev = "b720605" }

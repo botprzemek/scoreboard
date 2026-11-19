@@ -1,0 +1,12 @@
+[package]
+name = "scoreboard-configurator"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+scoreboard-config = { workspace = true, features = ["std", "serde", "flash"] }
+
+clap = { version = "4.4", features = ["derive"] }
+
+[dev-dependencies]
+tempfile = { workspace = true }

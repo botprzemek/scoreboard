@@ -1,0 +1,41 @@
+[package]
+name = "scoreboard-config"
+version.workspace = true
+edition.workspace = true
+
+[features]
+default = [
+    "std",
+]
+defmt = ["dep:defmt"]
+serde = [
+    "dep:serde_json",
+    "serde/std",
+    "serde/derive",
+]
+flash = [
+    "std",
+    "dep:probe-rs",
+]
+std = [
+    "dep:aes-gcm",
+    "dep:crc32fast",
+    "dep:ed25519-dalek",
+    "dep:rand",
+    "dep:libc",
+]
+
+
+[dependencies]
+aes-gcm = { version = "0.11.1", features = [], optional = true }
+crc32fast = { version = "1.5.1", features = [], optional = true }
+defmt = { workspace = true, optional = true }
+ed25519-dalek = { version = "3.0.0", features = ["rand_core"], optional = true }
+libc = { version = "0.2.189", features = [], optional = true }
+probe-rs = { version = "0.32.0", features = [], optional = true }
+rand = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

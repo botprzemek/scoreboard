@@ -1,0 +1,18 @@
+[package]
+name = "scoreboard-net"
+version.workspace = true
+edition.workspace = true
+
+[features]
+default = []
+defmt = ["dep:defmt"]
+serde = [
+    "dep:serde",
+    "serde/derive",
+]
+
+[dependencies]
+scoreboard-config = { workspace = true, default-features = false }
+
+defmt = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }

@@ -1,0 +1,11 @@
+[build]
+target = "./index.html"
+
+[watch]
+watch = ["./src", "./index.html"]
+ignore = ["./hmi-tauri", "./dist"]
+
+[serve]
+port = 1420
+addresses = ["0.0.0.0"]
+open = false

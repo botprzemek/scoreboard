@@ -1,8 +1,8 @@
 .DS_Store
-**/target
+**/target*
 **/dist
 **/firmware_*.bin
 **/config*.bin
 **/config*.json
-.vscode
 **/*.redb
+.vscode

@@ -1,12 +1,12 @@
 use crate::common::{Clock, ConfigStore, State, StoredConfig};
 use crate::rp235x::peripherals::flash::write_config_to_flash;
 
-use config::flash::FlashReader;
-use config::{Config, ConfigBuilder, DeviceConfig, NetworkConfig};
 use embassy_rp::Peri;
 use embassy_rp::peripherals::FLASH;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::signal::Signal;
+use scoreboard_config::flash::FlashReader;
+use scoreboard_config::{Config, ConfigBuilder, DeviceConfig, NetworkConfig};
 
 pub static CORE1_READY_SIGNAL: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 pub static STATE_SIGNAL: Signal<CriticalSectionRawMutex, State> = Signal::new();

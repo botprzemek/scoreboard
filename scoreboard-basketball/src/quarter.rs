@@ -11,6 +11,7 @@ pub enum Quarter {
     Q2 = 0x02,
     Q3 = 0x03,
     Q4 = 0x04,
+    OT = 0x05,
 }
 
 impl TryFrom<u8> for Quarter {
@@ -23,6 +24,7 @@ impl TryFrom<u8> for Quarter {
             0x02 => Ok(Self::Q2),
             0x03 => Ok(Self::Q3),
             0x04 => Ok(Self::Q4),
+            0x05 => Ok(Self::OT),
             other => Err(BasketballError::InvalidQuarter(other)),
         }
     }

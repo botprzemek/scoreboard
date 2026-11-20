@@ -149,12 +149,16 @@ impl ServerHandler for PacketHandler {
             GamePause => self.handle_game_pause(packet),
             GameEnd => self.handle_game_end(packet),
             GameReset => self.handle_game_reset(packet),
+            GameClockResetFull => self.handle_clock_reset_full(packet),
+            GameClockReset14s => self.handle_clock_reset_14s(packet),
             GameScoreHomeFT => self.add_score(packet, Team::Home, Score::FreeThrow),
             GameScoreHome2FG => self.add_score(packet, Team::Home, Score::FieldGoal2),
             GameScoreHome3FG => self.add_score(packet, Team::Home, Score::FieldGoal3),
+            GameScoreHomeSub => self.sub_score(packet, Team::Home, Score::FreeThrow),
             GameScoreAwayFT => self.add_score(packet, Team::Away, Score::FreeThrow),
             GameScoreAway2FG => self.add_score(packet, Team::Away, Score::FieldGoal2),
             GameScoreAway3FG => self.add_score(packet, Team::Away, Score::FieldGoal3),
+            GameScoreAwaySub => self.sub_score(packet, Team::Away, Score::FreeThrow),
             _ => None,
         }
     }
@@ -369,6 +373,24 @@ impl PacketHandler {
     fn add_score(&self, packet: ClientPacket, team: Team, score: Score) -> Option<ServerPacket> {
         self.game
             .add_score_for(self.target_game_id(packet), team, score);
+        None
+    }
+
+    fn sub_score(&self, packet: ClientPacket, team: Team, score: Score) -> Option<ServerPacket> {
+        self.game
+            .sub_score_for(self.target_game_id(packet), team, score);
+        None
+    }
+
+    fn handle_clock_reset_full(&self, packet: ClientPacket) -> Option<ServerPacket> {
+        self.game
+            .reset_shot_clock_for(self.target_game_id(packet));
+        None
+    }
+
+    fn handle_clock_reset_14s(&self, packet: ClientPacket) -> Option<ServerPacket> {
+        self.game
+            .reset_shot_clock_14s_for(self.target_game_id(packet));
         None
     }
 }

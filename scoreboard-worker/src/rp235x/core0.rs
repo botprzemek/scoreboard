@@ -6,14 +6,14 @@ use crate::rp235x::peripherals::{NetPeripherals, TrngPeripherals};
 use crate::rp235x::platform::{CORE1_READY_SIGNAL, FlashConfigStore, STATE_SIGNAL};
 use crate::rp235x::udp::unified_udp_task;
 
-use config::Config;
-use config::flash::FlashReader;
-use config::print::Print;
 use embassy_executor::{Executor, Spawner};
 use embassy_net::{Ipv4Address, Ipv4Cidr, StaticConfigV4};
 use embassy_rp::Peri;
 use embassy_rp::peripherals::{FLASH, WATCHDOG};
 use embassy_time::Timer;
+use scoreboard_config::Config;
+use scoreboard_config::flash::FlashReader;
+use scoreboard_config::print::Print;
 use static_cell::StaticCell;
 
 pub static EXECUTOR: StaticCell<Executor> = StaticCell::new();
@@ -91,24 +91,18 @@ async fn core0_task(
                 Timer::after_millis(500).await;
             }
 
-            if !dhcp_ok {
-                return;
+            if dhcp_ok && let Some(config_v4) = initialized_net.stack.config_v4() {
+                defmt::info!(
+                    "NetworkConfig::Address               {}",
+                    &config_v4.address
+                );
+                if let Some(ref gateway) = config_v4.gateway {
+                    defmt::info!("NetworkConfig::Gateway               {}", gateway);
+                }
+
+                transition(&mut machine, Input::WifiConnected);
+                connected_sta = true;
             }
-
-            let Some(config_v4) = initialized_net.stack.config_v4() else {
-                return;
-            };
-
-            defmt::info!(
-                "NetworkConfig::Address               {}",
-                &config_v4.address
-            );
-            if let Some(ref gateway) = config_v4.gateway {
-                defmt::info!("NetworkConfig::Gateway               {}", gateway);
-            }
-
-            transition(&mut machine, Input::WifiConnected);
-            connected_sta = true;
         }
     }
 
@@ -135,8 +129,9 @@ async fn core0_task(
 
         cyw43_driver.control.start_ap_open(&ap_ssid, 1).await;
         defmt::info!(
-            "AP '{}' started! Listening on UDP port 9000...",
-            ap_ssid.as_str()
+            "AP '{}' started! Listening on UDP port {}...",
+            ap_ssid.as_str(),
+            scoreboard_net::WORKER_UDP_PORT
         );
 
         spawner.spawn(defmt::unwrap!(dhcp_task(initialized_net.stack)));

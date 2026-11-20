@@ -6,7 +6,7 @@
 use crate::data::{Device, HandshakeAck, Heartbeat, HeartbeatAck};
 use crate::event::{ClientEvent, ServerEvent};
 use crate::layout::DATA_SIZE;
-use crate::node::NetError;
+use crate::error::NetError;
 use crate::packet::{ClientPacket, ServerPacket};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

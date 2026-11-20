@@ -28,7 +28,7 @@ bench = false
 required-features = ["esp32s3"]
 
 [features]
-default = ["scoreboard-hub75/w64h32"]
+default = []
 linux = [
     "critical-section/std",
 
@@ -36,6 +36,7 @@ linux = [
 ]
 esp32s3 = [
     "scoreboard-hub75/esp32s3",
+    "scoreboard-hub75/w64h32",
 
     "dep:embassy-executor",
     "dep:embassy-futures",
@@ -58,6 +59,7 @@ rp235x = [
     "scoreboard-basketball/defmt",
     "scoreboard-config/defmt",
     "scoreboard-hub75/rp235x",
+    "scoreboard-hub75/w64h32",
     "scoreboard-net/defmt",
 
     "dep:cortex-m",

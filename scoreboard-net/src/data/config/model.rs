@@ -1,6 +1,7 @@
 use core::str;
 
 use super::layout;
+use crate::packet::crc16_ccitt;
 use scoreboard_config::ConfigError;
 
 pub const CONFIG_PACKET_MAGIC: u8 = 0x43;
@@ -57,11 +58,8 @@ impl DeviceConfig {
         bytes[layout::WIFI_PASSWORD_START..layout::WIFI_PASSWORD_END]
             .copy_from_slice(&self.wifi_password);
 
-        let mut crc = CONFIG_PACKET_MAGIC ^ 0x42 ^ CONFIG_PACKET_VERSION;
-        for &b in &bytes[4..164] {
-            crc ^= b;
-        }
-        bytes[layout::CRC] = crc;
+        let crc = crc16_ccitt(&bytes[..layout::CRC_START]);
+        bytes[layout::CRC_START..layout::CRC_END].copy_from_slice(&crc.to_be_bytes());
 
         bytes
     }
@@ -79,16 +77,10 @@ impl DeviceConfig {
             return Err("event");
         }
 
-        let mut expected_crc = CONFIG_PACKET_MAGIC
-            ^ bytes[layout::EVENT]
-            ^ bytes[layout::SEQUENCE_ID]
-            ^ bytes[layout::VERSION];
+        let expected_crc = crc16_ccitt(&bytes[..layout::CRC_START]);
+        let actual_crc = u16::from_be_bytes([bytes[layout::CRC_START], bytes[layout::CRC_START + 1]]);
 
-        for &b in &bytes[4..164] {
-            expected_crc ^= b;
-        }
-
-        if bytes[layout::CRC] != expected_crc {
+        if actual_crc != expected_crc {
             return Err("crc");
         }
 

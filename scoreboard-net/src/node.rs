@@ -2,17 +2,9 @@ use core::future::Future;
 use core::marker::PhantomData;
 use core::net::SocketAddr;
 
+use crate::error::NetError;
 use crate::packet::{ClientPacket, Packet, ServerPacket};
 use crate::transport::{PacketReceiver, PacketSender};
-
-#[non_exhaustive]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum NetError {
-    Disconnected,
-    InvalidPacket(&'static str),
-}
 
 pub trait ClientHandler: Send {
     fn handle_packet(
@@ -106,7 +98,9 @@ where
     }
 
     pub async fn send_to(&mut self, packet: &Out, address: Option<SocketAddr>) {
-        self.transport.send_packet_to(&packet.to_bytes(), address).await;
+        self.transport
+            .send_packet_to(&packet.to_bytes(), address)
+            .await;
     }
 }
 

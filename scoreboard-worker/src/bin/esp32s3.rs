@@ -4,7 +4,7 @@
 use core::panic::PanicInfo;
 use core::ptr::addr_of_mut;
 
-use scoreboard_worker::common::BoardPeripherals as _;
+use scoreboard_worker::BoardPeripherals as _;
 use scoreboard_worker::esp32s3::peripherals::EspBoardPeripherals;
 use scoreboard_worker::esp32s3::{Core0, Core1};
 

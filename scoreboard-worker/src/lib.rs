@@ -1,6 +1,6 @@
 #![cfg_attr(not(feature = "linux"), no_std)]
 
-pub mod common;
+mod common;
 
 #[cfg(feature = "linux")]
 pub mod linux;

@@ -1,14 +1,29 @@
-pub mod dhcp;
-pub mod display;
-pub mod layout;
-pub mod protocol;
-pub mod state;
-pub mod traits;
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
+pub(crate) mod display;
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
+pub(crate) mod net;
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
+pub(crate) mod state;
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
+pub(crate) mod traits;
 
-pub use display::{DisplayRunner, Hub75Display, idle_palette_color, tick_game_in_progress};
-pub use layout::ScoreboardLayout;
-pub use protocol::{
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
+pub use display::DisplayRunner;
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
+pub use display::Hub75Display;
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
+pub use net::dhcp;
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
+pub use net::{
     ConnectedPacketResult, HandshakePacketResult, MASTER_UDP_PORT, WORKER_UDP_PORT, WorkerProtocol,
 };
-pub use state::{GAME_STATE, IS_CONNECTED_TO_MASTER, Input, Machine, SharedGameState, State};
-pub use traits::{BoardPeripherals, Clock, ConfigStore, DisplayTarget, StoredConfig};
+#[cfg(feature = "rp235x")]
+pub use state::State;
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
+pub use state::{Input, Machine};
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
+pub use traits::BoardPeripherals;
+#[cfg(feature = "linux")]
+pub use traits::DisplayTarget;
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
+pub use traits::{Clock, ConfigStore, StoredConfig};

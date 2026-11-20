@@ -68,8 +68,13 @@ impl GameMachine<QuarterStart> {
     #[must_use]
     pub fn start_quarter(mut self) -> GameMachine<InProgress> {
         let config = self.game.discipline().config();
+        let regulation_millis = if self.game.quarter() == Quarter::OT {
+            300_000
+        } else {
+            config.regulation_millis
+        };
         self.game
-            .set_regulation_millis(config.regulation_millis)
+            .set_regulation_millis(regulation_millis)
             .set_clock_millis(config.clock_millis)
             .resume();
 
@@ -115,7 +120,10 @@ impl GameMachine<InProgress> {
     ) -> Result<GameMachine<InProgress>, GameMachine<QuarterEnd>> {
         let delta_ms = delta.as_millis() as u32;
         let remaining = self.game.regulation_millis().saturating_sub(delta_ms);
-        self.game.set_regulation_millis(remaining);
+        let clock_remaining = self.game.clock_millis().saturating_sub(delta_ms);
+        self.game
+            .set_regulation_millis(remaining)
+            .set_clock_millis(clock_remaining);
 
         if remaining > 0 {
             return Ok(self);
@@ -174,7 +182,19 @@ impl GameMachine<QuarterEnd> {
             Quarter::Q1 => Quarter::Q2,
             Quarter::Q2 => Quarter::Q3,
             Quarter::Q3 => Quarter::Q4,
-            Quarter::Q4 | Quarter::None => {
+            Quarter::Q4 | Quarter::OT => {
+                if self.game.home_score() == self.game.away_score() {
+                    Quarter::OT
+                } else {
+                    self.game.end();
+
+                    return Err(GameMachine {
+                        game: self.game,
+                        _marker: PhantomData,
+                    });
+                }
+            }
+            Quarter::None => {
                 self.game.end();
 
                 return Err(GameMachine {
@@ -247,6 +267,34 @@ impl<S: CanModifyScore> ScoreWrite for GameMachine<S> {
             Team::Away => self.game.set_away_score(score),
         };
 
+        self
+    }
+
+    fn sub_score(&mut self, team: Team, score: Score) -> &mut GameMachine<S> {
+        let score = self.game.score(team).saturating_sub(score.into());
+
+        match team {
+            Team::Home => self.game.set_home_score(score),
+            Team::Away => self.game.set_away_score(score),
+        };
+
+        self
+    }
+}
+
+impl<S: CanModifyScore> GameMachine<S> {
+    pub fn reset_shot_clock(&mut self) -> &mut Self {
+        let clock_millis = self.game.discipline().config().clock_millis;
+        self.game.set_clock_millis(clock_millis);
+        self
+    }
+
+    pub fn reset_shot_clock_14s(&mut self) -> &mut Self {
+        let clock_millis = match self.game.discipline() {
+            Discipline::Fiba5v5 => 14_000,
+            _ => self.game.discipline().config().clock_millis,
+        };
+        self.game.set_clock_millis(clock_millis);
         self
     }
 }

@@ -45,7 +45,6 @@ scoreboard-basketball = { package = "scoreboard-basketball", path = "scoreboard-
 scoreboard-config = { package = "scoreboard-config", path = "scoreboard-config", default-features = false }
 scoreboard-hub75 = { package = "scoreboard-hub75", path = "scoreboard-hub75", default-features = false }
 scoreboard-net = { package = "scoreboard-net", path = "scoreboard-net" }
-scoreboard-worker = { package = "scoreboard-worker", path = "scoreboard-worker" }
 
 cortex-m = { version = "0.7.6" }
 cortex-m-rt = { version = "0.7.0" }

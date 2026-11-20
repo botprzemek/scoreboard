@@ -17,5 +17,6 @@ pub(crate) const WIFI_SSID_END: usize = 100;
 pub(crate) const WIFI_PASSWORD_START: usize = 100;
 pub(crate) const WIFI_PASSWORD_END: usize = 164;
 
-pub(crate) const CRC: usize = 164;
-pub(crate) const TOTAL_SIZE: usize = 165;
+pub(crate) const CRC_START: usize = 164;
+pub(crate) const CRC_END: usize = 166;
+pub(crate) const TOTAL_SIZE: usize = 166;

@@ -5,6 +5,7 @@ extern crate std;
 
 mod builder;
 mod config;
+mod error;
 
 pub mod print;
 
@@ -21,9 +22,7 @@ pub use builder::ConfigBuilder;
 pub(crate) use config::Input;
 #[cfg(any(feature = "flash", not(feature = "std")))]
 pub(crate) use config::Raw;
-pub use config::{
-    CONFIG_ADDR, CONFIG_SIZE, Config, ConfigError, DeviceConfig, NetworkConfig, Verified,
-};
+pub use config::{CONFIG_ADDR, CONFIG_SIZE, Config, DeviceConfig, NetworkConfig, Verified};
 #[cfg(feature = "serde")]
 pub use file::JsonReader;
 #[cfg(feature = "std")]
@@ -34,5 +33,6 @@ pub use flash::{FlashReader, FlashWriter};
 pub(crate) use keys::Keys;
 pub use print::Print;
 
+pub use error::ConfigError;
 #[cfg(feature = "flash")]
 pub use probe_rs;

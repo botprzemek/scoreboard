@@ -1,10 +1,10 @@
-use crate::common::{DisplayRunner, Hub75Display};
 use crate::esp32s3::platform::EspClock;
+use crate::common::{DisplayRunner, Hub75Display};
 
-use hub75::{DisplayBuffer, LedOutputs, LedPeripherals};
+use scoreboard_hub75::{DisplayBuffer, LedOutputs, LedPeripherals, HALF, HALF_HEIGHT, WIDTH};
 use static_cell::StaticCell;
 
-static DISPLAY: StaticCell<DisplayBuffer<64, 32, 16>> = StaticCell::new();
+static DISPLAY: StaticCell<DisplayBuffer<WIDTH, HALF, HALF_HEIGHT>> = StaticCell::new();
 
 pub struct Core1;
 

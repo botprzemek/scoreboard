@@ -21,6 +21,8 @@ pub trait ScoreRead {
 
 pub trait ScoreWrite {
     fn add_score(&mut self, team: Team, score: Score) -> &mut Self;
+
+    fn sub_score(&mut self, team: Team, score: Score) -> &mut Self;
 }
 
 pub trait Scorable: ScoreRead + ScoreWrite {}

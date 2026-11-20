@@ -66,7 +66,7 @@ pub fn App() -> impl IntoView {
         <div class="w-screen h-screen flex flex-col bg-background text-foreground select-none overflow-hidden font-sans">
             <NavigationBar
                 focused=is_focused
-                title="rp235x-hmi"
+                title="scoreboard-hmi"
                 right_action=view! {
                     <div class="flex items-center gap-2">
                         <Button

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "rp235x-hmi",
+  "productName": "scoreboard-hmi",
   "version": "0.1.0",
-  "identifier": "github.botprzemek.rp235x.hmi",
+  "identifier": "github.botprzemek.scoreboard.hmi",
   "build": {
     "beforeDevCommand": "trunk serve",
     "devUrl": "http://localhost:1420",
@@ -15,7 +15,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "rp235x-hmi",
+        "title": "scoreboard-hmi",
         "width": 1060,
         "height": 680,
         "decorations": false,

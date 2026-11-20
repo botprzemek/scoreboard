@@ -9,7 +9,6 @@ pub struct DhcpReply {
     pub len: usize,
 }
 
-/// Pure DHCP DISCOVER/REQUEST parser and OFFER/ACK builder for AP setup mode.
 pub fn build_dhcp_reply(packet: &[u8]) -> Option<DhcpReply> {
     if packet.len() < 240 || packet[0] != 1 {
         return None;
@@ -47,8 +46,8 @@ pub fn build_dhcp_reply(packet: &[u8]) -> Option<DhcpReply> {
     }
 
     let reply_type = match msg_type {
-        1 => 2, // DISCOVER -> OFFER
-        3 => 5, // REQUEST -> ACK
+        1 => 2,
+        3 => 5,
         _ => return None,
     };
 

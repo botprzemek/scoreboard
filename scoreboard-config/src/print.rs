@@ -7,11 +7,7 @@ use crate::DeviceConfig;
 use crate::NetworkConfig;
 use crate::{Config, ConfigError};
 
-#[cfg(all(feature = "defmt", not(feature = "std")))]
-use defmt::info;
-
 pub trait Print {
-
     fn print(&self) -> Result<(), ConfigError>;
 }
 
@@ -53,11 +49,11 @@ impl Print for Config {
 
     #[cfg(all(feature = "defmt", not(feature = "std")))]
     fn print(&self) -> Result<(), ConfigError> {
-        info!(
+        defmt::info!(
             "DeviceConfig::SerialNumber           {}",
             &self.serial_number()?
         );
-        info!(
+        defmt::info!(
             "DeviceConfig::DeviceID               {}",
             &self.device_id()?
         );

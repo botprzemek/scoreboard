@@ -1,10 +1,10 @@
 use core::hint;
 use core::mem;
 
-use config::NetworkConfig;
 use cyw43::{A4, Aligned, Control, JoinOptions, NetDriver, PowerManagementMode};
 use embassy_net::{Config as NetConfig, DhcpConfig, Runner, Stack, StackResources};
 use embassy_time::Timer;
+use scoreboard_config::NetworkConfig;
 use static_cell::StaticCell;
 
 pub struct InitializedNetStack {
@@ -21,7 +21,6 @@ const CLM_ADDR: usize = 0x1024_0000 ^ CLM_MASK;
 const CLM_LEN: usize = 984;
 
 impl Net {
-
     pub async fn init_stack(
         control: &mut Control<'static>,
         net_driver: NetDriver<'static>,

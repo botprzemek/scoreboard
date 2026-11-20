@@ -1,11 +1,14 @@
-use crate::common::layout::ScoreboardLayout;
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
+use crate::common::display::layout::ScoreboardLayout;
 use crate::common::state::{GAME_STATE, IS_CONNECTED_TO_MASTER};
 use crate::common::traits::{Clock, DisplayTarget};
 
 use core::sync::atomic::Ordering;
 use core::time::Duration;
 use scoreboard_basketball::{Game, GameMachine, Quarter, ScoreRead, State, Team};
-use scoreboard_hub75::{CORAL_RED, Color, DisplayBuffer, HALF_HEIGHT, HEIGHT, WIDTH};
+use scoreboard_hub75::Color;
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
+use scoreboard_hub75::{CORAL_RED, DisplayBuffer, HEIGHT, WIDTH};
 
 #[derive(PartialEq, Eq)]
 struct RenderKey {
@@ -39,22 +42,20 @@ impl RenderKey {
     }
 }
 
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
 pub struct Hub75Display<'a, F> {
-    buffer: &'a mut DisplayBuffer<WIDTH, HEIGHT, HALF_HEIGHT>,
+    buffer: &'a mut DisplayBuffer,
     layout: ScoreboardLayout,
     idle_animation: bool,
     present_fn: F,
 }
 
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
 impl<'a, F> Hub75Display<'a, F>
 where
-    F: FnMut(&DisplayBuffer<WIDTH, HEIGHT, HALF_HEIGHT>, bool),
+    F: FnMut(&DisplayBuffer, bool),
 {
-    pub fn new(
-        buffer: &'a mut DisplayBuffer<WIDTH, HEIGHT, HALF_HEIGHT>,
-        idle_animation: bool,
-        present_fn: F,
-    ) -> Self {
+    pub fn new(buffer: &'a mut DisplayBuffer, idle_animation: bool, present_fn: F) -> Self {
         Self {
             buffer,
             layout: ScoreboardLayout::new(),
@@ -64,9 +65,10 @@ where
     }
 }
 
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
 impl<F> DisplayTarget for Hub75Display<'_, F>
 where
-    F: FnMut(&DisplayBuffer<WIDTH, HEIGHT, HALF_HEIGHT>, bool),
+    F: FnMut(&DisplayBuffer, bool),
 {
     fn supports_idle_animation(&self) -> bool {
         self.idle_animation
@@ -119,6 +121,7 @@ impl<D: DisplayTarget, C: Clock> DisplayRunner<D, C> {
     }
 
     /// Persist locally ticked game clock back to [`GAME_STATE`] (useful when no high-frequency updates arrive).
+    #[cfg(feature = "linux")]
     pub const fn with_persisted_tick(mut self, persist: bool) -> Self {
         self.persist_ticked_game = persist;
         self
@@ -159,9 +162,7 @@ impl<D: DisplayTarget, C: Clock> DisplayRunner<D, C> {
         }
 
         let key = RenderKey::from_game(&game, is_connected);
-        if self.last_render_key.as_ref() != Some(&key)
-            && self.target.update(&game, is_connected)
-        {
+        if self.last_render_key.as_ref() != Some(&key) && self.target.update(&game, is_connected) {
             self.last_render_key = Some(key);
         }
 

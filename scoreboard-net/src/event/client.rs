@@ -12,13 +12,17 @@ define_event! {
         GameEnd = 0x23,
         GameReset = 0x24,
         GameSelect = 0x25,
+        GameClockResetFull = 0x26,
+        GameClockReset14s = 0x27,
 
         GameScoreHomeFT = 0x30,
         GameScoreHome2FG = 0x31,
         GameScoreHome3FG = 0x32,
+        GameScoreHomeSub = 0x33,
         GameScoreAwayFT = 0x40,
         GameScoreAway2FG = 0x41,
         GameScoreAway3FG = 0x42,
+        GameScoreAwaySub = 0x43,
 
         DeviceDisconnect = 0x60,
         DeviceAssignGame = 0x61,

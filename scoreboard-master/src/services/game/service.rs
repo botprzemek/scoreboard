@@ -228,6 +228,18 @@ impl GameService {
         self.send_command(game_id, GameCommand::AddScore(team, score));
     }
 
+    pub fn sub_score_for(&self, game_id: u64, team: Team, score: Score) {
+        self.send_command(game_id, GameCommand::SubScore(team, score));
+    }
+
+    pub fn reset_shot_clock_for(&self, game_id: u64) {
+        self.send_command(game_id, GameCommand::ResetShotClock);
+    }
+
+    pub fn reset_shot_clock_14s_for(&self, game_id: u64) {
+        self.send_command(game_id, GameCommand::ResetShotClock14s);
+    }
+
     pub fn resume_for(&self, game_id: u64) {
         self.send_command(game_id, GameCommand::Resume);
     }

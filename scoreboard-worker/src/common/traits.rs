@@ -5,6 +5,7 @@ use scoreboard_hub75::Color;
 use scoreboard_net::{Device, DeviceConfigPacket, DeviceType};
 
 /// Platform peripheral initialization and splitting abstraction.
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
 pub trait BoardPeripherals: Sized {
     fn init() -> Self;
 }

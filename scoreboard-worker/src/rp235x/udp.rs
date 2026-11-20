@@ -10,7 +10,7 @@ use embassy_rp::Peri;
 use embassy_rp::peripherals::{FLASH, WATCHDOG};
 use embassy_rp::watchdog::Watchdog;
 use embassy_time::{Duration, Ticker, Timer};
-use net::DeviceConfigPacket;
+use scoreboard_net::DeviceConfigPacket;
 use static_cell::StaticCell;
 
 static UDP_RX_BUFFER: StaticCell<[u8; 1024]> = StaticCell::new();

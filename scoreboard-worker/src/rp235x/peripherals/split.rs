@@ -2,7 +2,7 @@ use super::{NetPeripherals, TrngPeripherals};
 
 use embassy_rp::peripherals::{CORE1, FLASH, WATCHDOG};
 use embassy_rp::{Peri, Peripherals};
-use hub75::LedPeripherals;
+use scoreboard_hub75::LedPeripherals;
 
 pub struct BoardPeripherals {
     pub trng: TrngPeripherals,

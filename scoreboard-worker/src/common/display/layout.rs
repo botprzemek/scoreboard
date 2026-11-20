@@ -1,6 +1,6 @@
 use heapless::String;
 use scoreboard_basketball::{Game, ScoreRead, Team};
-use scoreboard_hub75::{Color, DisplayBuffer};
+use scoreboard_hub75::{Color, DisplayBuffer, WIDTH};
 
 pub struct ScoreboardLayout {
     home_buffer: String<8>,
@@ -26,9 +26,9 @@ impl ScoreboardLayout {
         }
     }
 
-    pub fn render<const WIDTH: usize, const HEIGHT: usize, const HALF_HEIGHT: usize>(
+    pub fn render(
         &mut self,
-        display: &mut DisplayBuffer<WIDTH, HEIGHT, HALF_HEIGHT>,
+        display: &mut DisplayBuffer,
         game: &Game,
         color: Color,
         is_connected: bool,
@@ -73,9 +73,9 @@ impl ScoreboardLayout {
         }
     }
 
-    pub fn draw_text_layout<const WIDTH: usize, const HEIGHT: usize, const HALF_HEIGHT: usize>(
+    pub fn draw_text_layout(
         &self,
-        display: &mut DisplayBuffer<WIDTH, HEIGHT, HALF_HEIGHT>,
+        display: &mut DisplayBuffer,
         color: Color,
         home: &str,
         guest: &str,

@@ -5,9 +5,12 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 const DEFAULT_HTTP_ADDR: &str = "0.0.0.0:3000";
-const DEFAULT_UDP_ADDR: &str = "0.0.0.0:9000";
 const DEFAULT_WORKER_TIMEOUT_SECS: u64 = 9;
 const DEFAULT_DB_FLUSH_MS: u64 = 250;
+
+fn default_udp_addr() -> String {
+    format!("0.0.0.0:{}", scoreboard_net::MASTER_UDP_PORT)
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConfigError {
@@ -72,7 +75,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             http_address: Some(DEFAULT_HTTP_ADDR.to_string()),
-            udp_address: Some(DEFAULT_UDP_ADDR.to_string()),
+            udp_address: Some(default_udp_addr()),
             database_backend: DatabaseBackend::default(),
             database_path: None,
             worker_timeout: Duration::from_secs(DEFAULT_WORKER_TIMEOUT_SECS),
@@ -93,7 +96,7 @@ impl Config {
     {
         Ok(Self {
             http_address: Self::parse_addr(&mut lookup, "MASTER_HTTP_ADDR", DEFAULT_HTTP_ADDR)?,
-            udp_address: Self::parse_addr(&mut lookup, "MASTER_UDP_ADDR", DEFAULT_UDP_ADDR)?,
+            udp_address: Self::parse_addr(&mut lookup, "MASTER_UDP_ADDR", &default_udp_addr())?,
             database_backend: Self::parse_db_backend(&mut lookup)?,
             database_path: Self::parse_non_empty(&mut lookup, "MASTER_DB_PATH")?.map(PathBuf::from),
             worker_timeout: Duration::from_secs(Self::parse_positive_u64(

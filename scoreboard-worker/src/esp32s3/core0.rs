@@ -20,7 +20,7 @@ use esp_radio::wifi::{
     sta::StationConfig,
 };
 use heapless::Vec;
-use net::DeviceConfigPacket;
+use scoreboard_net::DeviceConfigPacket;
 use static_cell::StaticCell;
 
 static SOCKETS: StaticCell<StackResources<5>> = StaticCell::new();

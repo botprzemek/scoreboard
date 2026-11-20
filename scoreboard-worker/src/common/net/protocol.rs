@@ -8,8 +8,6 @@ use scoreboard_net::{
     ClientPacket, Device, DeviceConfigPacket, DeviceType, HandshakeAck, Heartbeat, ServerPacket,
 };
 
-pub const MASTER_UDP_PORT: u16 = 9000;
-pub const WORKER_UDP_PORT: u16 = 9001;
 pub const DEFAULT_MAX_MISSED_HEARTBEATS: u8 = 3;
 
 #[derive(Debug)]
@@ -24,6 +22,7 @@ pub enum HandshakePacketResult {
 
 #[derive(Debug)]
 pub enum ConnectedPacketResult {
+    #[allow(dead_code)]
     DeviceConfig(DeviceConfigPacket),
     HeartbeatAck,
     HandshakeAck,
@@ -56,6 +55,7 @@ impl WorkerProtocol {
         Device::try_new(DeviceType::Worker, serial, id).expect("valid default worker device")
     }
 
+    #[cfg(feature = "linux")]
     pub fn session_token(&self) -> u32 {
         self.session_token
     }

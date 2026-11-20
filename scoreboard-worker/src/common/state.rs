@@ -51,12 +51,14 @@ pub enum Input {
     #[default]
     None = 0x00,
     BootSuccess = 0x10,
+    #[cfg(feature = "rp235x")]
     BootFailed = 0x11,
     CoreSynced = 0x20,
     WifiConnected = 0x30,
+    #[cfg(feature = "rp235x")]
     WifiFailed = 0x31,
+    #[cfg(feature = "linux")]
     ErrorOccurred = 0x90,
-    RecoverySuccess = 0x80,
 }
 
 #[repr(u8)]
@@ -81,22 +83,19 @@ impl Machine {
         Self { state: State::Boot }
     }
 
-    #[must_use]
-    pub const fn current_state(&self) -> State {
-        self.state
-    }
-
     /// Apply an input and return `Some(new_state)` if the state changed.
     pub fn transition(&mut self, input: Input) -> Option<State> {
         let old_state = self.state;
         self.state = match (self.state, input) {
             (State::Boot, Input::BootSuccess) => State::CoreSync,
+            #[cfg(feature = "rp235x")]
             (State::Boot, Input::BootFailed) => State::ErrorRecovery,
             (State::CoreSync, Input::CoreSynced) => State::Networking,
             (State::Networking, Input::WifiConnected) => State::Running,
+            #[cfg(feature = "rp235x")]
             (State::Networking, Input::WifiFailed) => State::ErrorRecovery,
+            #[cfg(feature = "linux")]
             (_, Input::ErrorOccurred) => State::ErrorRecovery,
-            (State::ErrorRecovery, Input::RecoverySuccess) => State::Boot,
             _ => self.state,
         };
 

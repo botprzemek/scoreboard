@@ -18,20 +18,17 @@ impl fmt::Display for KeyError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::MissingEnvironmentVariable => {
-                write!(formatter, "Brak wymaganej zmiennej środowiskowej")
+                write!(formatter, "Missing required environment variable")
             }
-            Self::InvalidHexEncoding => write!(formatter, "Niepoprawne kodowanie heksadecymalne"),
+            Self::InvalidHexEncoding => write!(formatter, "Invalid hexadecimal encoding"),
             Self::InvalidKeyLength => {
                 write!(
                     formatter,
-                    "Błędna długość klucza (wymagane dokładnie 64 znaki Hex)"
+                    "Invalid key length (expected exactly 64 hex characters)"
                 )
             }
             Self::MemoryLockFailed => {
-                write!(
-                    formatter,
-                    "Nie udało się zablokować strony w pamięci RAM (mlock)"
-                )
+                write!(formatter, "Failed to lock memory page in RAM (mlock)")
             }
         }
     }

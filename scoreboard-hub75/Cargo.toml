@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [features]
-default = []
+default = ["w64h32"]
 w64h64 = []
 w64h32 = []
 w32h32 = []
@@ -17,8 +17,15 @@ rp235x = [
     "dep:embassy-rp",
     "embassy-rp/rp235xa",
 ]
+defmt = ["dep:defmt"]
+serde = [
+    "dep:serde",
+    "serde/derive",
+]
 
 [dependencies]
 cortex-m = { workspace = true, optional = true }
+defmt = { workspace = true, optional = true }
 embassy-rp = { workspace = true, optional = true }
 esp-hal = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }

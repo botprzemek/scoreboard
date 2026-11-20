@@ -22,6 +22,7 @@ fn format_quarter(quarter: Quarter) -> &'static str {
         Quarter::Q2 => "Q2",
         Quarter::Q3 => "Q3",
         Quarter::Q4 => "Q4",
+        Quarter::OT => "OT",
         _ => "Q?",
     }
 }
@@ -47,13 +48,17 @@ pub fn scoreboard_view(master: MasterContext, role_mode: RwSignal<HmiRoleMode>) 
     let m_pause = master;
     let m_end = master;
     let m_reset = master;
+    let m_clk_full = master;
+    let m_clk_14 = master;
 
     let m_home_1 = master;
     let m_home_2 = master;
     let m_home_3 = master;
+    let m_home_sub = master;
     let m_away_1 = master;
     let m_away_2 = master;
     let m_away_3 = master;
+    let m_away_sub = master;
 
     let disconnected = Signal::derive(move || !master.is_connected.get());
 
@@ -235,6 +240,27 @@ pub fn scoreboard_view(master: MasterContext, role_mode: RwSignal<HmiRoleMode>) 
                                         <RotateCcw class="h-4 w-4" />
                                         <span>"Reset"</span>
                                     </Button>
+                                    <Button
+                                        variant=ButtonVariant::Outline
+                                        size=ButtonSize::Lg
+                                        disabled=disconnected
+                                        on:click=move |_| m_clk_full.send_game_event(ClientEvent::GameClockResetFull)
+                                    >
+                                        <span>{move || match master.current_game.get().discipline() {
+                                            Discipline::Fiba3v3 => "Zegar 12s",
+                                            _ => "Zegar 24s",
+                                        }}</span>
+                                    </Button>
+                                    <Show when=move || master.current_game.get().discipline() == Discipline::Fiba5v5>
+                                        <Button
+                                            variant=ButtonVariant::Outline
+                                            size=ButtonSize::Lg
+                                            disabled=disconnected
+                                            on:click=move |_| m_clk_14.send_game_event(ClientEvent::GameClockReset14s)
+                                        >
+                                            <span>"Zegar 14s"</span>
+                                        </Button>
+                                    </Show>
                                 </div>
                             </CardContent>
                         </Card>
@@ -247,7 +273,16 @@ pub fn scoreboard_view(master: MasterContext, role_mode: RwSignal<HmiRoleMode>) 
                                     <CardDescription>"Dodaj punkty drużynie gospodarzy"</CardDescription>
                                 </CardHeader>
                                 <CardContent>
-                                    <div class="grid grid-cols-3 gap-2.5">
+                                    <div class="grid grid-cols-4 gap-2.5">
+                                        <Button
+                                            variant=ButtonVariant::Outline
+                                            size=ButtonSize::Lg
+                                            class="h-12 text-base font-semibold"
+                                            disabled=disconnected
+                                            on:click=move |_| m_home_sub.send_game_event(ClientEvent::GameScoreHomeSub)
+                                        >
+                                            "-1"
+                                        </Button>
                                         <Button
                                             variant=ButtonVariant::Outline
                                             size=ButtonSize::Lg
@@ -285,7 +320,16 @@ pub fn scoreboard_view(master: MasterContext, role_mode: RwSignal<HmiRoleMode>) 
                                     <CardDescription>"Dodaj punkty drużynie gości"</CardDescription>
                                 </CardHeader>
                                 <CardContent>
-                                    <div class="grid grid-cols-3 gap-2.5">
+                                    <div class="grid grid-cols-4 gap-2.5">
+                                        <Button
+                                            variant=ButtonVariant::Outline
+                                            size=ButtonSize::Lg
+                                            class="h-12 text-base font-semibold"
+                                            disabled=disconnected
+                                            on:click=move |_| m_away_sub.send_game_event(ClientEvent::GameScoreAwaySub)
+                                        >
+                                            "-1"
+                                        </Button>
                                         <Button
                                             variant=ButtonVariant::Outline
                                             size=ButtonSize::Lg

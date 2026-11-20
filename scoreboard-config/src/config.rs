@@ -1,27 +1,14 @@
-use core::fmt;
 use core::marker::PhantomData;
 use core::mem;
 use core::slice;
 use core::str;
 use core::sync::atomic::{self, Ordering};
 
+use crate::error::ConfigError;
+
 pub const CONFIG_SIZE: usize = mem::size_of::<Config>();
 
 pub const CONFIG_ADDR: usize = 0x1003_f000;
-
-#[non_exhaustive]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ConfigError {
-    FileNotFound,
-    InvalidEncoding,
-    #[cfg(feature = "std")]
-    InvalidKey,
-    IntegrityCheckFailed,
-    #[cfg(feature = "std")]
-    Io(std::io::ErrorKind),
-    Serialization,
-    StringTooLong,
-}
 
 #[cfg(all(feature = "std", feature = "serde"))]
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -77,46 +64,6 @@ pub trait NetworkConfig {
     fn wifi_ssid(&self) -> Result<&str, ConfigError>;
 
     fn wifi_password(&self) -> Result<&str, ConfigError>;
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for ConfigError {}
-
-impl fmt::Display for ConfigError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::FileNotFound => write!(formatter, "File not found"),
-            Self::InvalidEncoding => {
-                write!(formatter, "String slice contains invalid UTF-8 sequence")
-            }
-            #[cfg(feature = "std")]
-            Self::InvalidKey => write!(formatter, "Cryptographic key configuration is invalid"),
-            Self::IntegrityCheckFailed => write!(formatter, "Memory checksum validation failed"),
-            #[cfg(feature = "std")]
-            Self::Io(error) => write!(formatter, "I/O Error: {error}"),
-            Self::Serialization => write!(formatter, "Serialization/Deserialization failed"),
-            Self::StringTooLong => {
-                write!(formatter, "Input string exceeds maximum buffer capacity")
-            }
-        }
-    }
-}
-
-#[cfg(feature = "std")]
-impl From<crate::keys::KeyError> for ConfigError {
-    fn from(_: crate::keys::KeyError) -> Self {
-        Self::InvalidKey
-    }
-}
-
-#[cfg(feature = "std")]
-impl From<std::io::Error> for ConfigError {
-    fn from(error: std::io::Error) -> Self {
-        match error.kind() {
-            std::io::ErrorKind::NotFound => Self::FileNotFound,
-            other => Self::Io(other),
-        }
-    }
 }
 
 impl Default for Config<Verified> {
@@ -342,5 +289,11 @@ impl Config<Raw> {
         let verified_ref = unsafe { &*(self as *const Self).cast::<Config<Verified>>() };
 
         Ok(verified_ref)
+    }
+}
+
+impl Config<Verified> {
+    pub fn from_verified_bytes(bytes: &[u8]) -> Result<&Self, ConfigError> {
+        Config::<Raw>::from_bytes(bytes)?.verify()
     }
 }

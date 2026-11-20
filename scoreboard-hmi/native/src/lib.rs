@@ -3,7 +3,9 @@ use std::time::{Duration, Instant};
 
 use scoreboard_net::event::{ClientEvent, ServerEvent};
 use scoreboard_net::layout::PACKET_SIZE;
-use scoreboard_net::{ClientPacket, Device, DeviceConfig, DeviceType, ServerPacket};
+use scoreboard_net::{
+    ClientPacket, Device, DeviceConfig, DeviceType, MASTER_UDP_PORT, ServerPacket, WORKER_UDP_PORT,
+};
 #[cfg(target_os = "macos")]
 use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 use tauri::window::Color;
@@ -101,7 +103,10 @@ async fn discover_master(timeout_secs: Option<u64>) -> Result<String, String> {
         let start = Instant::now();
         let mut buf = [0u8; PACKET_SIZE];
 
-        let targets = ["255.255.255.255:9000", "127.0.0.1:9000"];
+        let targets = [
+            format!("255.255.255.255:{MASTER_UDP_PORT}"),
+            format!("127.0.0.1:{MASTER_UDP_PORT}"),
+        ];
 
         while start.elapsed() < timeout {
             for target in &targets {
@@ -112,13 +117,12 @@ async fn discover_master(timeout_secs: Option<u64>) -> Result<String, String> {
             while step_start.elapsed() < Duration::from_millis(400) {
                 match socket.recv_from(&mut buf) {
                     Ok((size, remote_addr)) => {
-                        if size == PACKET_SIZE {
-                            if let Ok(server_packet) = ServerPacket::from_bytes(buf) {
-                                if server_packet.event() == ServerEvent::HandshakeAck {
-                                    let ip = remote_addr.ip().to_string();
-                                    return Ok(format!("{}:3000", ip));
-                                }
-                            }
+                        if size == PACKET_SIZE
+                            && let Ok(server_packet) = ServerPacket::from_bytes(buf)
+                            && server_packet.event() == ServerEvent::HandshakeAck
+                        {
+                            let ip = remote_addr.ip().to_string();
+                            return Ok(format!("{}:3000", ip));
                         }
                     }
                     Err(_) => break,
@@ -151,7 +155,7 @@ fn send_device_config(
     let target_addr = if target_ip.contains(':') {
         target_ip
     } else {
-        format!("{}:9000", target_ip)
+        format!("{target_ip}:{WORKER_UDP_PORT}")
     };
 
     socket
@@ -174,17 +178,14 @@ fn send_device_config(
     match server_packet.event() {
         ServerEvent::DeviceConfigAck => {
             let _ = socket.set_read_timeout(Some(Duration::from_millis(2000)));
-            if let Ok((n2, _)) = socket.recv_from(&mut buf) {
-                if n2 == PACKET_SIZE {
-                    if let Ok(p2) = ServerPacket::from_bytes(buf) {
-                        if p2.event() == ServerEvent::DeviceConfigSuccess {
-                            return Ok(
-                                "Sukces! Urządzenie zaktualizowało pamięć flash i restartuje się."
-                                    .to_string(),
-                            );
-                        }
-                    }
-                }
+            if let Ok((n2, _)) = socket.recv_from(&mut buf)
+                && n2 == PACKET_SIZE
+                && let Ok(p2) = ServerPacket::from_bytes(buf)
+                && p2.event() == ServerEvent::DeviceConfigSuccess
+            {
+                return Ok(
+                    "Sukces! Urządzenie zaktualizowało pamięć flash i restartuje się.".to_string(),
+                );
             }
             Ok("Konfiguracja zaakceptowana przez urządzenie (Ack).".to_string())
         }

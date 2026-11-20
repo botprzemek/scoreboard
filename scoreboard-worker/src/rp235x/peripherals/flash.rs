@@ -1,7 +1,7 @@
-use config::{CONFIG_ADDR, Config, Verified};
 use embassy_rp::Peri;
 use embassy_rp::flash::{Blocking, Flash};
 use embassy_rp::peripherals::FLASH;
+use scoreboard_config::{CONFIG_ADDR, Config, Verified};
 
 const FLASH_BASE: usize = 0x1000_0000;
 

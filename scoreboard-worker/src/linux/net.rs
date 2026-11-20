@@ -80,12 +80,19 @@ pub async fn run_udp_worker<S: ConfigStore>(
         tokio::select! {
             _ = heartbeat_interval.tick() => {
                 let target = master_address.unwrap_or(broadcast_target);
-                let packet = if master_address.is_some() && protocol.session_token() != 0 {
+                let is_connected = master_address.is_some() && protocol.session_token() != 0;
+                let packet = if is_connected {
                     protocol.next_heartbeat()
                 } else {
                     protocol.next_handshake_request()
                 };
-                let _ = socket.send_to(&packet, target).await;
+                if socket.send_to(&packet, target).await.is_ok()
+                    && is_connected
+                    && protocol.record_heartbeat_sent()
+                {
+                    println!("⚠️ [Core 0 Thread] Lost Master connection (missed heartbeats)");
+                    master_address = None;
+                }
             }
 
             recv_res = socket.recv_from(&mut receive_buffer) => {

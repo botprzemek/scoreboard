@@ -21,7 +21,6 @@ std = [
     "dep:aes-gcm",
     "dep:crc32fast",
     "dep:ed25519-dalek",
-    "dep:rand",
     "dep:libc",
 ]
 
@@ -33,7 +32,6 @@ defmt = { workspace = true, optional = true }
 ed25519-dalek = { version = "3.0.0", features = ["rand_core"], optional = true }
 libc = { version = "0.2.189", features = [], optional = true }
 probe-rs = { version = "0.32.0", features = [], optional = true }
-rand = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 

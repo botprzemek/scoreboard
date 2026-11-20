@@ -20,6 +20,9 @@ pub(super) const EVENT_QUEUE_CAPACITY: usize = 1024;
 
 pub(super) enum GameCommand {
     AddScore(Team, Score),
+    SubScore(Team, Score),
+    ResetShotClock,
+    ResetShotClock14s,
     Resume,
     Pause,
     End,
@@ -201,6 +204,33 @@ fn apply_command(game: &mut Game, cmd: GameCommand) {
                 *game = machine.into_game();
             } else if let Some(mut machine) = GameMachine::from_paused(*game) {
                 machine.add_score(team, score);
+                *game = machine.into_game();
+            }
+        }
+        GameCommand::SubScore(team, score) => {
+            if let Some(mut machine) = GameMachine::from_in_progress(*game) {
+                machine.sub_score(team, score);
+                *game = machine.into_game();
+            } else if let Some(mut machine) = GameMachine::from_paused(*game) {
+                machine.sub_score(team, score);
+                *game = machine.into_game();
+            }
+        }
+        GameCommand::ResetShotClock => {
+            if let Some(mut machine) = GameMachine::from_in_progress(*game) {
+                machine.reset_shot_clock();
+                *game = machine.into_game();
+            } else if let Some(mut machine) = GameMachine::from_paused(*game) {
+                machine.reset_shot_clock();
+                *game = machine.into_game();
+            }
+        }
+        GameCommand::ResetShotClock14s => {
+            if let Some(mut machine) = GameMachine::from_in_progress(*game) {
+                machine.reset_shot_clock_14s();
+                *game = machine.into_game();
+            } else if let Some(mut machine) = GameMachine::from_paused(*game) {
+                machine.reset_shot_clock_14s();
                 *game = machine.into_game();
             }
         }

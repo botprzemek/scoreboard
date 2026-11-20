@@ -1,14 +1,13 @@
 use crate::common::{DisplayRunner, Hub75Display};
-use crate::rp235x::peripherals::LedPeripherals;
 use crate::rp235x::platform::{CORE1_READY_SIGNAL, RpClock};
 
 use embassy_executor::{Executor, Spawner};
 use embassy_futures::yield_now;
-use hub75::{DisplayBuffer, LedOutputs};
+use scoreboard_hub75::{DisplayBuffer, LedOutputs, LedPeripherals};
 use static_cell::StaticCell;
 
 pub static EXECUTOR: StaticCell<Executor> = StaticCell::new();
-static DISPLAY: StaticCell<DisplayBuffer<64, 32, 16>> = StaticCell::new();
+static DISPLAY: StaticCell<DisplayBuffer> = StaticCell::new();
 
 pub struct Core1;
 

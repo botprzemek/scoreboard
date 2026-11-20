@@ -5,7 +5,7 @@ use crate::ui::master_dialog::MasterDialog;
 use crate::ui::scoreboard_view::{HmiRoleMode, ScoreboardView};
 use crate::ui::sidebar_panel::SidebarPanel;
 use crate::ui::traffic_lights::NavigationBar;
-use icons::{Menu, Server, Wifi, WifiOff};
+use crate::components::icons::{Menu, Server, Wifi, WifiOff};
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;

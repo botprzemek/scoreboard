@@ -3,6 +3,7 @@ use crate::common::{
     WorkerProtocol,
 };
 use crate::esp32s3::dhcp::dhcp_task;
+use crate::esp32s3::display::render_task;
 use crate::esp32s3::platform::FlashConfigStore;
 
 use embassy_executor::Spawner;
@@ -12,7 +13,7 @@ use embassy_net::{
     StackResources, StaticConfigV4,
 };
 use embassy_time::{Duration, Ticker, Timer};
-use esp_hal::peripherals::{FLASH, WIFI};
+use esp_hal::peripherals::WIFI;
 use esp_hal::rng::Rng;
 use esp_hal::system::AppCoreGuard;
 use esp_radio::wifi::{
@@ -38,11 +39,11 @@ impl Core0 {
     pub async fn run(
         spawner: Spawner,
         wifi_peri: WIFI<'static>,
-        flash_peri: FLASH<'static>,
+        mut store: FlashConfigStore<'static>,
+        stored: Option<StoredConfig>,
         app_core_guard: AppCoreGuard<'static>,
     ) -> ! {
-        let mut store = FlashConfigStore::new(flash_peri);
-        let stored = store.read();
+        spawner.spawn(render_task().expect("render task"));
 
         let (mut controller, interfaces) =
             esp_radio::wifi::new(wifi_peri, ControllerConfig::default())

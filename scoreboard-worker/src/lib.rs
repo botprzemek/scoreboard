@@ -2,6 +2,9 @@
 
 mod common;
 
+#[cfg(any(feature = "rp235x", feature = "esp32s3"))]
+pub use common::{BoardPeripherals, ConfigStore};
+
 #[cfg(feature = "linux")]
 pub mod linux;
 

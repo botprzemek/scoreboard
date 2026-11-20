@@ -3,7 +3,7 @@ use crate::components::ui::button::{Button, ButtonSize, ButtonVariant};
 use crate::components::ui::card::{Card, CardContent, CardDescription, CardHeader, CardTitle};
 use crate::components::ui::separator::Separator;
 use crate::master::MasterContext;
-use icons::{Eye, Pause, Pencil, Play, RotateCcw, Square, Terminal};
+use crate::components::icons::{Eye, Pause, Pencil, Play, RotateCcw, Square, Terminal};
 use leptos::prelude::*;
 use scoreboard_basketball::{Discipline, Quarter, Score, ScoreRead, State, Team};
 use scoreboard_net::ClientEvent;

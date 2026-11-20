@@ -4,7 +4,7 @@ use crate::components::ui::card::{
 };
 use crate::components::ui::input::Input;
 use crate::master::MasterContext;
-use icons::{RefreshCw, Server, X};
+use crate::components::icons::{RefreshCw, Server, X};
 use leptos::prelude::*;
 use scoreboard_config::DeviceConfig;
 

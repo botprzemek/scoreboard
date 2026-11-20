@@ -83,7 +83,7 @@ impl<P: OutputPin> LedOutputs<P> {
 
     #[unsafe(link_section = ".data.ram_func")]
     #[inline(never)]
-    pub fn render_bcm_frame_sio_fast<const WIDTH: usize, const HALF_HEIGHT: usize>(
+    pub fn render_bcm_frame_fast<const WIDTH: usize, const HALF_HEIGHT: usize>(
         &mut self,
         bitplanes: &BitplaneBuffer<WIDTH, HALF_HEIGHT>,
         brightness_percent: u8,

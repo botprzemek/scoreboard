@@ -1,13 +1,17 @@
-use core::cell::RefCell;
-use core::sync::atomic::AtomicBool;
-use critical_section::Mutex as CsMutex;
+use core::cell::UnsafeCell;
+use core::sync::atomic::{AtomicBool, AtomicU32, Ordering, fence};
 use scoreboard_basketball::Game;
 
 pub static IS_CONNECTED_TO_MASTER: AtomicBool = AtomicBool::new(false);
 pub static GAME_STATE: SharedGameState = SharedGameState::new();
 
+/// Lock-free readable shared game state (seqlock).
+///
+/// Writers serialize via `critical_section`; readers (`get`) never acquire a
+/// critical section so Core 1 HUB75 rendering cannot stall on Core 0 Wi-Fi/RTOS.
 pub struct SharedGameState {
-    state: CsMutex<RefCell<Game>>,
+    seq: AtomicU32,
+    state: UnsafeCell<Game>,
 }
 
 impl Default for SharedGameState {
@@ -19,26 +23,50 @@ impl Default for SharedGameState {
 impl SharedGameState {
     pub const fn new() -> Self {
         Self {
-            state: CsMutex::new(RefCell::new(Game::empty())),
+            seq: AtomicU32::new(0),
+            state: UnsafeCell::new(Game::empty()),
         }
     }
 
     #[inline]
     pub fn get(&self) -> Game {
-        critical_section::with(|cs| *self.state.borrow(cs).borrow())
+        loop {
+            let seq1 = self.seq.load(Ordering::Acquire);
+            if seq1 & 1 != 0 {
+                core::hint::spin_loop();
+                continue;
+            }
+            // SAFETY: Torn reads are detected via `seq1 == seq2` with Acquire fences.
+            let game = unsafe { core::ptr::read_volatile(self.state.get()) };
+            fence(Ordering::Acquire);
+            let seq2 = self.seq.load(Ordering::Relaxed);
+            if seq1 == seq2 {
+                return game;
+            }
+        }
     }
 
     #[inline]
     pub fn set(&self, game: Game) {
-        critical_section::with(|cs| {
-            *self.state.borrow(cs).borrow_mut() = game;
+        critical_section::with(|_| {
+            self.seq.fetch_add(1, Ordering::Release);
+            fence(Ordering::Release);
+            // SAFETY: Writers are serialized by `critical_section`.
+            unsafe { core::ptr::write_volatile(self.state.get(), game) };
+            self.seq.fetch_add(1, Ordering::Release);
         });
     }
 
     #[inline]
     pub fn update<F: FnOnce(&mut Game)>(&self, f: F) {
-        critical_section::with(|cs| {
-            f(&mut self.state.borrow(cs).borrow_mut());
+        critical_section::with(|_| {
+            self.seq.fetch_add(1, Ordering::Release);
+            fence(Ordering::Release);
+            // SAFETY: Writers are serialized by `critical_section`.
+            let mut game = unsafe { core::ptr::read_volatile(self.state.get()) };
+            f(&mut game);
+            unsafe { core::ptr::write_volatile(self.state.get(), game) };
+            self.seq.fetch_add(1, Ordering::Release);
         });
     }
 }

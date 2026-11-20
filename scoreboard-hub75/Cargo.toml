@@ -10,7 +10,8 @@ w64h32 = []
 w32h32 = []
 esp32s3 = [
     "dep:esp-hal",
-    "esp-hal/esp32s3"
+    "esp-hal/esp32s3",
+    "esp-hal/unstable",
 ]
 rp235x = [
     "dep:cortex-m",

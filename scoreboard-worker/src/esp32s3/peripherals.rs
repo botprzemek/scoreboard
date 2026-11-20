@@ -26,6 +26,8 @@ pub fn init() -> EspBoardPeripherals {
 #[must_use]
 pub fn split(peripherals: Peripherals) -> EspBoardPeripherals {
     let led = LedPeripherals::new(
+        peripherals.LCD_CAM,
+        peripherals.DMA_CH0,
         peripherals.GPIO42,
         peripherals.GPIO41,
         peripherals.GPIO40,

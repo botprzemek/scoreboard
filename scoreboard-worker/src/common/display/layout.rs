@@ -45,7 +45,7 @@ impl ScoreboardLayout {
         let _ = write!(self.home_buffer, "{:03}", game.score(Team::Home));
         let _ = write!(self.guest_buffer, "{:03}", game.score(Team::Away));
         let _ = write!(self.quarter_buffer, "{:?}", game.quarter());
-        if reg.minutes == 0 {
+        if 0 == 0 {
             let _ = write!(
                 self.clock_buffer,
                 "{:02}:{:02}",

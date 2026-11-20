@@ -1,5 +1,5 @@
+use super::join_classes;
 use leptos::prelude::*;
-use tw_merge::tw_merge;
 
 #[component]
 pub fn Input(
@@ -9,9 +9,9 @@ pub fn Input(
     #[prop(optional, default = "text")] r#type: &'static str,
     #[prop(optional)] on_input: Option<Callback<String>>,
 ) -> impl IntoView {
-    let merged = tw_merge!(
+    let merged = join_classes(
         "flex h-9 w-full rounded-lg border border-input bg-background/80 px-3 py-1.5 text-xs text-foreground shadow-2xs transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
-        &class
+        &class,
     );
 
     view! {

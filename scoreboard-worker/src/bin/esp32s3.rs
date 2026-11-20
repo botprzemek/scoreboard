@@ -5,8 +5,9 @@ use core::panic::PanicInfo;
 use core::ptr::addr_of_mut;
 
 use scoreboard_worker::BoardPeripherals as _;
+use scoreboard_worker::ConfigStore as _;
 use scoreboard_worker::esp32s3::peripherals::EspBoardPeripherals;
-use scoreboard_worker::esp32s3::{Core0, Core1};
+use scoreboard_worker::esp32s3::{Core0, Core1, FlashConfigStore};
 
 use embassy_executor::Spawner;
 use esp_hal::interrupt::software::SoftwareInterruptControl;
@@ -34,6 +35,9 @@ async fn main(spawner: Spawner) -> ! {
     let timg0 = TimerGroup::new(board_peripherals.timg0);
     esp_rtos::start(timg0.timer0, sw_int.software_interrupt0);
 
+    let mut store = FlashConfigStore::new(board_peripherals.flash);
+    let stored = store.read();
+
     let led_peripherals = board_peripherals.led;
     let mut cpu_control = CpuControl::new(board_peripherals.cpu_ctrl);
     let app_core_guard = unsafe {
@@ -44,11 +48,5 @@ async fn main(spawner: Spawner) -> ! {
             .expect("failed to start Core 1")
     };
 
-    Core0::run(
-        spawner,
-        board_peripherals.wifi,
-        board_peripherals.flash,
-        app_core_guard,
-    )
-    .await
+    Core0::run(spawner, board_peripherals.wifi, store, stored, app_core_guard).await
 }

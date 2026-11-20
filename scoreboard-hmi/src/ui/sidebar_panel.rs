@@ -2,7 +2,7 @@ use crate::components::ui::badge::{Badge, BadgeVariant};
 use crate::components::ui::button::{Button, ButtonSize, ButtonVariant};
 use crate::components::ui::separator::Separator;
 use crate::master::MasterContext;
-use icons::{Cpu, Monitor, Plus, Trash2, Trophy, X};
+use crate::components::icons::{Cpu, Monitor, Plus, Trash2, Trophy, X};
 use leptos::prelude::*;
 use scoreboard_basketball::{Discipline, Game, ScoreRead, State};
 use scoreboard_config::DeviceConfig;

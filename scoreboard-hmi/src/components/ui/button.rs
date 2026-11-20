@@ -1,41 +1,54 @@
+use super::join_classes;
 use leptos::prelude::*;
-use tw_merge::*;
 
-#[derive(TwClass)]
-#[tw(
-    class = "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg text-xs font-medium transition-all cursor-pointer select-none active:scale-[0.98] disabled:pointer-events-none disabled:opacity-45 focus-visible:ring-2 focus-visible:ring-ring"
-)]
-pub struct ButtonClass {
-    pub variant: ButtonVariant,
-    pub size: ButtonSize,
-}
+const BUTTON_BASE: &str = "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg text-xs font-medium transition-all cursor-pointer select-none active:scale-[0.98] disabled:pointer-events-none disabled:opacity-45 focus-visible:ring-2 focus-visible:ring-ring";
 
-#[derive(TwVariant)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ButtonVariant {
-    #[tw(default, class = "bg-primary text-primary-foreground shadow-sm hover:opacity-90")]
+    #[default]
     Default,
-    #[tw(class = "bg-secondary text-secondary-foreground hover:bg-secondary/80")]
     Secondary,
-    #[tw(class = "border border-border bg-card hover:bg-secondary/70 text-foreground shadow-2xs")]
     Outline,
-    #[tw(class = "hover:bg-secondary text-foreground")]
     Ghost,
-    #[tw(class = "bg-destructive text-destructive-foreground shadow-sm hover:opacity-90")]
     Destructive,
-    #[tw(class = "bg-emerald-500 text-white shadow-sm hover:bg-emerald-600")]
     Success,
 }
 
-#[derive(TwVariant)]
+impl ButtonVariant {
+    const fn class(self) -> &'static str {
+        match self {
+            Self::Default => "bg-primary text-primary-foreground shadow-sm hover:opacity-90",
+            Self::Secondary => "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+            Self::Outline => {
+                "border border-border bg-card hover:bg-secondary/70 text-foreground shadow-2xs"
+            }
+            Self::Ghost => "hover:bg-secondary text-foreground",
+            Self::Destructive => {
+                "bg-destructive text-destructive-foreground shadow-sm hover:opacity-90"
+            }
+            Self::Success => "bg-emerald-500 text-white shadow-sm hover:bg-emerald-600",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ButtonSize {
-    #[tw(default, class = "h-8 px-3 py-1.5")]
+    #[default]
     Default,
-    #[tw(class = "h-7 rounded-md px-2.5 text-[11px]")]
     Sm,
-    #[tw(class = "h-10 rounded-xl px-4 text-sm")]
     Lg,
-    #[tw(class = "h-8 w-8 p-0")]
     Icon,
+}
+
+impl ButtonSize {
+    const fn class(self) -> &'static str {
+        match self {
+            Self::Default => "h-8 px-3 py-1.5",
+            Self::Sm => "h-7 rounded-md px-2.5 text-[11px]",
+            Self::Lg => "h-10 rounded-xl px-4 text-sm",
+            Self::Icon => "h-8 w-8 p-0",
+        }
+    }
 }
 
 #[component]
@@ -49,12 +62,12 @@ pub fn Button(
     children: Children,
 ) -> impl IntoView {
     let classes = Memo::new(move |_| {
-        let base = ButtonClass {
-            variant: variant.get(),
-            size: size.get(),
-        }
-        .to_class();
-        tw_merge!(&base, &class)
+        let base = format!(
+            "{BUTTON_BASE} {} {}",
+            variant.get().class(),
+            size.get().class()
+        );
+        join_classes(&base, &class)
     });
 
     view! {

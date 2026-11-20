@@ -1,6 +1,7 @@
 use crate::common::{Input, Machine, StoredConfig};
 use crate::rp235x::cyw43::{Cyw43, cyw43_task};
 use crate::rp235x::dhcp::dhcp_task;
+use crate::rp235x::display::render_task;
 use crate::rp235x::net::{Net, net_task};
 use crate::rp235x::peripherals::{NetPeripherals, TrngPeripherals};
 use crate::rp235x::platform::{CORE1_READY_SIGNAL, FlashConfigStore, STATE_SIGNAL};
@@ -63,6 +64,7 @@ async fn core0_task(
     // Sync with Core 1
     CORE1_READY_SIGNAL.wait().await;
     transition(&mut machine, Input::CoreSynced);
+    spawner.spawn(defmt::unwrap!(render_task()));
 
     // Networking
     let seed = TrngPeripherals::init(trng).await;

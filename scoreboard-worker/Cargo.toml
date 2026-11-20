@@ -20,8 +20,40 @@ bench = false
 required-features = ["rp235x"]
 
 [[bin]]
+name = "rp235x-nyan-cat"
+path = "src/bin/rp235x-nyan-cat.rs"
+test = false
+doctest = false
+bench = false
+required-features = ["rp235x"]
+
+[[bin]]
+name = "rp235x-bad-apple"
+path = "src/bin/rp235x-bad-apple.rs"
+test = false
+doctest = false
+bench = false
+required-features = ["rp235x"]
+
+[[bin]]
 name = "esp32s3"
 path = "src/bin/esp32s3.rs"
+test = false
+doctest = false
+bench = false
+required-features = ["esp32s3"]
+
+[[bin]]
+name = "esp32s3-nyan-cat"
+path = "src/bin/esp32s3-nyan-cat.rs"
+test = false
+doctest = false
+bench = false
+required-features = ["esp32s3"]
+
+[[bin]]
+name = "esp32s3-bad-apple"
+path = "src/bin/esp32s3-bad-apple.rs"
 test = false
 doctest = false
 bench = false
